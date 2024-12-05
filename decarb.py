@@ -10,38 +10,104 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def apply_boundary_conditions(u, v, p):
-    u[:,-1] = u[:,-2]                   # u(M+1,1) = u(M,1)
-    p[:,-2] = 0                         # P|x=Lx = 0 (0 gauge outlet)
-    p[:,-1] = -p[:,-2]                  # P(M+1,1) = -P(M,1)
+    # Left boundary, inflow BC
+    u[:,0] = u_vel      # velocity at left-side boundary
+    p[:,0] = p[:,1]     # dP/dx|x=0 = 0
+    v[:,0] = 0          # v|x=0 = 0
     
-    # Inflow BC at left boundary
-    u[:,0] = u_vel    # velocity at left-side boundary = 0.1 m/s
-    p[:,0] = p[:,1] # dP/dx|x=0 = 0
-
-    # Top and Bottom boundaries
+    # Right boundary, outflow BC
+    u[:,-1] = u[:,-2]   # u(M+1,1) = u(M,1)
+    p[:,-2] = 0         # P|x=Lx = 0 (0 gauge outlet)
+    p[:,-1] = -p[:,-2]  # P(M+1,1) = -P(M,1)
+    v[:,-1] = v[:,-2]   # dv/dx = 0
+    
+    # Top boundary, wall
+    u[-1,:] = -u[-2,:]  # no slip at top wall
+    p[-1,:] = p[-2,:]   # top wall, horizontal wall dP/dy = 0
+    v[-1,:] = 0         # impermeable wall, v = 0
+     
+    
+    # Bottom boundary, wall
     u[0,:] = -u[1,:]    # no slip at bottom wall
-    u[-1,:] = u[-2,:]   # free shear at top boundary
     p[0,:] = p[1,:]     # bottom wall, horizontal wall dP/dy = 0 
-
-    p[:,-2] = 0         # P|y=Ly = 0 (0 gauge outlet)
-    p[-1,:] = -p[-2,:]  # P(N+1,1) = -P(N,1)
-
-    v[:,-1] = v[:,-2]   # Outflow at right boundary
-    v[:,0] = 0          # left side boundary, v = 0 at ghost nodes left of left-side boundary
     v[0,:] = 0          # bottom wall (ground), v = 0
-    v[-1,:] = v[-2,:]   # top wall (free shear), dv/dy = 0
-    
     return u, v, p
     
+def plot_velocity(u,v):
+    u_centered = 0.5 * (u[:-1, :-1] + u[1:, :-1])  # Average to cell centers in x-direction
+    v_centered = 0.5 * (v[:, :-1] + v[:, 1:])  # Average to cell centers in y-direction
+    velocity_magnitude = np.sqrt(u_centered**2 + v_centered**2)
+    
+    # New meshgrid for plotting
+    x_plot = np.arange(u_centered.shape[1])
+    y_plot = np.arange(u_centered.shape[0])
+    X_plot, Y_plot = np.meshgrid(x, y)
 
+    # velocity contour
+    plt.figure(figsize=(8, 6))
+    plt.contourf(X_plot, Y_plot, velocity_magnitude, levels=5, cmap='viridis')  # Contour plot
+    plt.colorbar(label='Velocity Magnitude [m/s]')
+    plt.xlabel('x')
+    plt.ylabel('y')
+    plt.title(f'Velocity Contour, n: {n}')
+    plt.show()
+    
+def plot_u_velocity(u,v):
+    u_centered = 0.5 * (u[:-1, :-1] + u[1:, :-1])  # Average to cell centers in x-direction
+    v_centered = 0.5 * (v[:, :-1] + v[:, 1:])  # Average to cell centers in y-direction
+    velocity_magnitude = np.sqrt(u_centered**2 + v_centered**2)
+    
+    # New meshgrid for plotting
+    x_plot = np.arange(u_centered.shape[1])
+    y_plot = np.arange(u_centered.shape[0])
+    X_plot, Y_plot = np.meshgrid(x, y)
+    
+    # u-velocity contour
+    plt.figure(figsize=(8, 6))
+    plt.contourf(X_plot, Y_plot, u_centered, levels=5, cmap='viridis')  # Contour plot
+    plt.colorbar(label='Velocity Magnitude [m/s]')
+    plt.xlabel('x')
+    plt.ylabel('y')
+    plt.title(f'u-Velocity Contour')
+    plt.show()
+    
+def plot_v_velocity(u,v):
+    u_centered = 0.5 * (u[:-1, :-1] + u[1:, :-1])  # Average to cell centers in x-direction
+    v_centered = 0.5 * (v[:, :-1] + v[:, 1:])  # Average to cell centers in y-direction
+    velocity_magnitude = np.sqrt(u_centered**2 + v_centered**2)
+    
+    # New meshgrid for plotting
+    x_plot = np.arange(u_centered.shape[1])
+    y_plot = np.arange(u_centered.shape[0])
+    X_plot, Y_plot = np.meshgrid(x, y)
+    
+    # v-velocity contour
+    plt.figure(figsize=(8, 6))
+    plt.contourf(X_plot, Y_plot, v_centered, levels=5, cmap='viridis')  # Contour plot
+    plt.colorbar(label='Velocity Magnitude [m/s]')
+    plt.xlabel('x')
+    plt.ylabel('y')
+    plt.title(f'v-Velocity Contour')
+    plt.show()
+    
+def plot_pressure(p):
+    # pressure contour
+    plt.figure(figsize=(8, 6))
+    plt.contourf(XP, YP, p, levels=10, cmap='coolwarm')  # Contour plot
+    plt.colorbar(label='Pressure [Pa]')
+    plt.xlabel('x')
+    plt.ylabel('y')
+    plt.title(f'Pressure Contour')
+    plt.show()
+    
 """Grid from class"""""
 u_vel = 1
 
-Lx = 1 * 5  # Length of domain in x-direction (change to 1)
-Ly = 1  * 1 # Length of domain in y-direction (change to 1)
+Lx = 100  # Length of domain in x-direction (change to 1)
+Ly = 10 # Length of domain in y-direction (change to 1)
 
-dx = .1  #(change to 0.25)
-dy = .05   #(change to 0.25)
+dx = 2.5  #(change to 0.25)
+dy = 2.5   #(change to 0.25)
 
 x = np.arange(0, Lx+dx, dx) # x-grid
 y = np.arange(0, Ly+dy, dy) # y-grid
@@ -52,7 +118,8 @@ N = len(y)  # num grid points, y
 print(M)
 print(N)
 
-nt = 10
+nt = 250
+n = 0
 
 
 x_u = np.arange(0, (Lx+dx), dx)          # u-velocity in x-nodes
@@ -75,55 +142,31 @@ p = np.zeros([len(y_p),len(x_p)])
 
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 """wind"""
-##To be implemented
-# u_r = 8.49      # m/s (reference wind speed)
-# z_r = 10        # meters (reference height of measurement)
-# alpha = 1/7
-# u_z = -u_r * (y/z_r)**alpha
-
 # Implemented
 mu = 1.81*10.**-5.  #Pa-s
 rho = 1.184         #kg/ms
-dt = .05             #seconds
+dt = dx/u_vel * .1            #seconds
 
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 """BCs"""
+
+## Adding ghost nodes
 # Outflow BC at right boundary
-# x_u = np.arange(0, (Lx+dx) + dx, dx)  # Adding extra column of ghost nodes at right side boundary
-# XU,YU = np.meshgrid(x_u,y_u)        # Recreating meshgrid for plotting
-# u = np.zeros([len(y_u),len(x_u)])
-u[:,-1] = u[:,-2]                   # u(M+1,1) = u(M,1)
+x_u = np.arange(0, (Lx+dx) + dx, dx)  # Adding extra column of ghost nodes at right side boundary
+XU,YU = np.meshgrid(x_u,y_u)        # Recreating meshgrid for plotting
+u = np.zeros([len(y_u),len(x_u)])
 
-# x_p = np.arange(0,(Lx+dx)+dx + dx, dx)   # Adding extra column of ghost nodes at right side boundary
-# y_p = np.arange(0,(Ly+dy)+dy + dy, dy)   # Adding extra row of ghost nodes at top side boundary
-# XP, YP = np.meshgrid(x_p, y_p)      # Recreating meshgrid for plotting
-# p = np.zeros([len(y_p),len(x_p)])
-p[:,-2] = 0                         # P|x=Lx = 0 (0 gauge outlet)
-p[:,-1] = -p[:,-2]                  # P(M+1,1) = -P(M,1)
+## Adding ghost nodes
+x_p = np.arange(0,(Lx+dx)+dx + dx, dx)   # Adding extra column of ghost nodes at right side boundary
+XP, YP = np.meshgrid(x_p, y_p)      # Recreating meshgrid for plotting
+p = np.zeros([len(y_p),len(x_p)])
 
+u, v, p = apply_boundary_conditions(u,v,p)
 
-# Inflow BC at left boundary
-u[:,0] = u_vel    # velocity at left-side boundary
-p[:,0] = p[:,1] # dP/dx|x=0 = 0
-
-
-# Top and Bottom boundaries
-u[0,:] = -u[1,:]    # no slip at bottom wall
-u[-1,:] = u[-2,:]   # free shear at top boundary
-p[0,:] = p[1,:]     # bottom wall, horizontal wall dP/dy = 0 
-
-p[:,-2] = 0         # P|y=Ly = 0 (0 gauge outlet)
-p[-1,:] = -p[-2,:]  # P(N+1,1) = -P(N,1)
-
-# TODO: BCs for v #############################################################
-# y_v = np.arange(0,(Ly+dy) + dy, dy) # Adding extra row of ghost nodes at top side boundary
-# XV,YV = np.meshgrid(x_v,y_v)
-# v = np.zeros([len(y_v),len(x_v)])
-
-v[:,-1] = v[:,-2]   # Outflow at right boundary
-v[:,0] = 0          # left side boundary, v = 0 at ghost nodes left of left-side boundary
-v[0,:] = 0          # bottom wall (ground), v = 0
-v[-1,:] = v[-2,:]   # top wall (free shear), dv/dy = 0
+plot_velocity(u,v)
+plot_u_velocity(u,v)
+plot_v_velocity(u,v)
+plot_pressure(p)
 
 
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -217,14 +260,14 @@ for n in range(nt):
     p_n = p
     
     # Update u-velocity
-    for j in range(1, len(y_u) - 1):  # Loop over interior y indices for u
-        for i in range(1, len(x_u) - 2):  # Loop over interior x indices for u
+    for j in interior_y_u:  # Loop over interior y indices for u
+        for i in interior_x_u:  # Loop over interior x indices for u
             dpdx = (p[j, i+1] - p[j, i]) / dx  # Pressure gradient in x
             u_n[j, i] = u_frac[j, i] - dt * dpdx  # Update u
     
     # Update v-velocity
-    for j in range(1, len(y_v) - 2):  # Loop over interior y indices for v
-        for i in range(1, len(x_v) - 1):  # Loop over interior x indices for v
+    for j in interior_y_v:  # Loop over interior y indices for v
+        for i in interior_x_v:  # Loop over interior x indices for v
             dpdy = (p[j+1, i] - p[j, i]) / dy  # Pressure gradient in y
             v_n[j, i] = v_frac[j, i] - dt * dpdy  # Update v
     
@@ -236,32 +279,34 @@ for n in range(nt):
     
     
     if n % 2 == 0:
-        # interpolate u and v to pressure points
-        u_centered = 0.5 * (u[:, :-1] + u[:, 1:])  # Average to cell centers in x-direction
-        u_centered = np.pad(u_centered, ((0, 0), (1, 1)), mode='edge')  # Extend in x
+        plot_velocity(u,v)
 
-        v_centered = 0.5 * (v[:-1, :] + v[1:, :])  # Average to cell centers in y-direction
-        v_centered = np.pad(v_centered, ((1, 1), (0, 0)), mode='edge')  # Extend in y
+    #     # interpolate u and v to pressure points
+    #     u_centered = 0.5 * (u[:, :-1] + u[:, 1:])  # Average to cell centers in x-direction
+    #     u_centered = np.pad(u_centered, ((0, 0), (1, 1)), mode='edge')  # Extend in x
 
-        velocity_magnitude = np.sqrt(u_centered**2 + v_centered**2)
+    #     v_centered = 0.5 * (v[:-1, :] + v[1:, :])  # Average to cell centers in y-direction
+    #     v_centered = np.pad(v_centered, ((1, 1), (0, 0)), mode='edge')  # Extend in y
+
+    #     velocity_magnitude = np.sqrt(u_centered**2 + v_centered**2)
         
-        # velocity contour
-        plt.figure(figsize=(8, 6))
-        plt.contourf(XP, YP, velocity_magnitude, levels=10, cmap='viridis')  # Contour plot
-        plt.colorbar(label='Velocity Magnitude [m/s]')
-        plt.xlabel('x')
-        plt.ylabel('y')
-        plt.title(f'Velocity Contour, n={n}')
-        plt.show()
+    #     # velocity contour
+    #     plt.figure(figsize=(8, 6))
+    #     plt.contourf(XP, YP, velocity_magnitude, levels=10, cmap='viridis')  # Contour plot
+    #     plt.colorbar(label='Velocity Magnitude [m/s]')
+    #     plt.xlabel('x')
+    #     plt.ylabel('y')
+    #     plt.title(f'Velocity Contour, n={n}')
+    #     plt.show()
         
-        # pressure contour
-        plt.figure(figsize=(8, 6))
-        plt.contourf(XP, YP, p, levels=10, cmap='coolwarm')  # Contour plot
-        plt.colorbar(label='Pressure [Pa]')
-        plt.xlabel('x')
-        plt.ylabel('y')
-        plt.title(f'Pressure Contour, n={n}')
-        plt.show()
+    #     # pressure contour
+    #     plt.figure(figsize=(8, 6))
+    #     plt.contourf(XP, YP, p, levels=10, cmap='coolwarm')  # Contour plot
+    #     plt.colorbar(label='Pressure [Pa]')
+    #     plt.xlabel('x')
+    #     plt.ylabel('y')
+    #     plt.title(f'Pressure Contour, n={n}')
+    #     plt.show()
 
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 """Plotting"""
@@ -280,16 +325,21 @@ for n in range(nt):
 
 
 plt.figure(figsize=(12, 8))
+# skip = 1
 
 XP = XP-dx/2
 YP = YP-dy/2
-plt.scatter(XP, YP, color='green', marker = '+', s=45,label='p Grid points')
+plt.scatter(XP, YP, color='green', marker='+', s=45, label='p Grid points')
+# plt.scatter(XP[::skip], YP[::skip], color='green', marker='+', s=45, label='p Grid points')
+
 
 YU = YU-dy/2
 plt.scatter(XU, YU, color='blue', marker='>', s=45,label='u - Grid points')
+# plt.scatter(XU[::skip], YU[::skip], color='blue', marker='>', s=45,label='u - Grid points')
 
 XV = XV-dx/2
 plt.scatter(XV, YV, color='red', marker='^', s=45,label='v - Grid points')
+# plt.scatter(XV[::skip], YV[::skip], color='red', marker='^', s=45,label='v - Grid points')
 
 
 plt.plot([0, Lx, Lx, 0, 0], [0, 0, Ly, Ly, 0], color='black', linestyle='-', linewidth=2, label="Domain Boundary")
