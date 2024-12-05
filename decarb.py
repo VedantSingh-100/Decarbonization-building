@@ -64,7 +64,7 @@ def plot_u_velocity(u,v):
     
     # u-velocity contour
     plt.figure(figsize=(8, 6))
-    plt.contourf(X_plot, Y_plot, u_centered, levels=5, cmap='viridis')  # Contour plot
+    plt.contourf(X_plot, Y_plot, u_centered, levels=10, cmap='viridis')  # Contour plot
     plt.colorbar(label='Velocity Magnitude [m/s]')
     plt.xlabel('x')
     plt.ylabel('y')
@@ -83,7 +83,7 @@ def plot_v_velocity(u,v):
     
     # v-velocity contour
     plt.figure(figsize=(8, 6))
-    plt.contourf(X_plot, Y_plot, v_centered, levels=5, cmap='viridis')  # Contour plot
+    plt.contourf(X_plot, Y_plot, v_centered, levels=10, cmap='viridis')  # Contour plot
     plt.colorbar(label='Velocity Magnitude [m/s]')
     plt.xlabel('x')
     plt.ylabel('y')
@@ -103,11 +103,11 @@ def plot_pressure(p):
 """Grid from class"""""
 u_vel = 1
 
-Lx = 100  # Length of domain in x-direction (change to 1)
-Ly = 10 # Length of domain in y-direction (change to 1)
+Lx = 5  # Length of domain in x-direction (change to 1)
+Ly = 5 # Length of domain in y-direction (change to 1)
 
-dx = 2.5  #(change to 0.25)
-dy = 2.5   #(change to 0.25)
+dx = Lx/10 #(change to 0.25)
+dy = Ly/10   #(change to 0.25)
 
 x = np.arange(0, Lx+dx, dx) # x-grid
 y = np.arange(0, Ly+dy, dy) # y-grid
@@ -118,7 +118,7 @@ N = len(y)  # num grid points, y
 print(M)
 print(N)
 
-nt = 250
+nt = 10000
 n = 0
 
 
@@ -190,14 +190,26 @@ interior_x_v = range(1,len(x_v) - 1)
 interior_y_v = range(1,len(y_v) - 1)
 
 for n in range(nt):
-
+    
+    u_max = np.max(np.abs(u))
+    v_max = np.max(np.abs(v))
+    nu_u = u_max*dt/dx
+    nu_v = v_max*dt/dy
+    nu = np.max([nu_u,nu_v])
+    
     for i in interior_x_u:
         for j in interior_y_u:
             
-            duudx = 1/dx * (((u[j,i]+u[j,i+1])/2)**2 - ((u[j,i]+u[j,i-1])/2)**2)
+            adv_duudx = nu/dx * (np.abs(u[j,i] + u[j,i+1])/2 * (u[j,i] - u[j,i+1])/2 \
+                                 - np.abs(u[j,i-1] + u[j,i])/2 * (u[j,i-1] - u[j,i])/2)
+                
+            duudx = 1/dx * (((u[j,i]+u[j,i+1])/2)**2 - ((u[j,i]+u[j,i-1])/2)**2) + adv_duudx
+            
+            adv_dvudy = nu/dy * (np.abs(v[j,i] + v[j,i+1])/2 * (u[j,i] - u[j+1,i])/2 \
+                                 - np.abs(v[j-1,i] + v[j-1,i+1])/2 * (u[j-1,i] - u[j,i])/2)
             
             dvudy = 1/dy * (v[j,i] + v[j,i+1])/2 * (u[j,i] + u[j+1,i])/2 \
-                    - (v[j-1,i] + v[j-1,i+1])/2 * (u[j-1,i] + u[j,i])/2
+                    - (v[j-1,i] + v[j-1,i+1])/2 * (u[j-1,i] + u[j,i])/2 + adv_dvudy
                     
             d2udx2 = (u[j,i+1] - 2*u[j,i] + u[j,i-1])/dx**2
             
@@ -209,10 +221,16 @@ for n in range(nt):
     for i in interior_x_v:
         for j in interior_y_v:
             
+            adv_duvdx = nu/dx * (np.abs(u[j,i] + u[j+1,i])/2 * (v[j,i] - v[j,i+1])/2 \
+                                 - np.abs(u[j,i-1] + u[j+1,i-1])/2 * (v[j,i-1] - v[j,i])/2)
+            
             duvdx = 1/dx * (u[j,i] + u[j+1,i])/2 * (v[j,i+1] + v[j,i])/2 \
-                    - (u[j,i-1] + u[j+1,i-1])/2 * (v[j,i] + v[j,i-1])/2
+                    - (u[j,i-1] + u[j+1,i-1])/2 * (v[j,i] + v[j,i-1])/2 + adv_duvdx
                     
-            dvvdy = 1/dy * ((v[j,i] + v[j+1,i])/2)**2 - ((v[j,i] + v[j-1,i])/2)**2
+            adv_dvudy = nu/dy * (np.abs(v[j,i] + v[j+1,i])/2 * (v[j,i] - v[j+1,i])/2 \
+                                 - np.abs(v[j-1,i] + v[j,i])/2 * (v[j-1,i] - v[j,i])/2)
+                
+            dvvdy = 1/dy * ((v[j,i] + v[j+1,i])/2)**2 - ((v[j,i] + v[j-1,i])/2)**2 + adv_dvudy
             
             d2vdx2 = (v[j,i+1] - 2*v[j,i] + v[j,i-1])/dx**2
             
@@ -278,38 +296,14 @@ for n in range(nt):
     p = p_n.copy()
     
     
-    if n % 2 == 0:
+    if n % 10 == 0:
         plot_velocity(u,v)
 
-    #     # interpolate u and v to pressure points
-    #     u_centered = 0.5 * (u[:, :-1] + u[:, 1:])  # Average to cell centers in x-direction
-    #     u_centered = np.pad(u_centered, ((0, 0), (1, 1)), mode='edge')  # Extend in x
-
-    #     v_centered = 0.5 * (v[:-1, :] + v[1:, :])  # Average to cell centers in y-direction
-    #     v_centered = np.pad(v_centered, ((1, 1), (0, 0)), mode='edge')  # Extend in y
-
-    #     velocity_magnitude = np.sqrt(u_centered**2 + v_centered**2)
-        
-    #     # velocity contour
-    #     plt.figure(figsize=(8, 6))
-    #     plt.contourf(XP, YP, velocity_magnitude, levels=10, cmap='viridis')  # Contour plot
-    #     plt.colorbar(label='Velocity Magnitude [m/s]')
-    #     plt.xlabel('x')
-    #     plt.ylabel('y')
-    #     plt.title(f'Velocity Contour, n={n}')
-    #     plt.show()
-        
-    #     # pressure contour
-    #     plt.figure(figsize=(8, 6))
-    #     plt.contourf(XP, YP, p, levels=10, cmap='coolwarm')  # Contour plot
-    #     plt.colorbar(label='Pressure [Pa]')
-    #     plt.xlabel('x')
-    #     plt.ylabel('y')
-    #     plt.title(f'Pressure Contour, n={n}')
-    #     plt.show()
 
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 """Plotting"""
+
+## wind profile
 # plt.figure()
 # plt.plot(u_z,y)
 # plt.title("Wind profile")
