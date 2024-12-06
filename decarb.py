@@ -130,10 +130,8 @@ u_vel = 10 #m/s
 Lx = 50    # Length of domain in x-direction (change to 1)
 Ly = 25      # Length of domain in y-direction (change to 1)
 
-dx = Lx/(50)
-dy = Ly/(25)
-
-print(f"dx:{dx} m, dy:{dy} m")
+dx = Lx/(50*2)
+dy = Ly/(25*2)
 
 x = np.arange(0, Lx+dx, dx) # x-grid
 y = np.arange(0, Ly+dy, dy) # y-grid
@@ -186,6 +184,10 @@ p = np.zeros([len(y_p),len(x_p)])
 
 u, v, p = apply_boundary_conditions(u,v,p)
 
+print('u_shape: ',u.shape)
+print('v_shape: ',v.shape)
+print('P_shape: ',p.shape)
+
 plot_velocity(u,v)
 # plot_u_velocity(u,v)
 # plot_v_velocity(u,v)
@@ -205,17 +207,19 @@ p_n = p*0
 u_frac = u*0
 v_frac = v*0
 
-# x-momentum eqn. components
-interior_x_u = range(1,len(x_u) - 1)
-interior_y_u = range(1,len(y_u) - 1)
+interior_x_u = range(1, len(x_u) - 1)
+interior_y_u = range(1, len(y_u) - 1)
 
-interior_x_v = range(1,len(x_v) - 1)
-interior_y_v = range(1,len(y_v) - 1)
+interior_x_v = range(1, len(x_v) - 1)
+interior_y_v = range(1, len(y_v) - 1)
+b = np.zeros_like(p)
+
 
 for n in range(nt):
+    nu = calculate_courrant(u, v, dt)
+    dt = calculate_dt(u, v)
     
-    nu = calculate_courrant(u,v,dt)
-    dt = calculate_dt(u,v)
+    p_old = p_n.copy()
     
     # print(f'n:{n}')
     # print(f'u_max:{u_max}')
@@ -226,66 +230,71 @@ for n in range(nt):
     # print(f'v_dlength_max:{v_max/dy}')
     # print(f'new dt: {dt}')
     
-    p_old = p_n.copy()
-    
-    for i in interior_x_u:
-        for j in interior_y_u:
-            
-            adv_duudx = nu/dx * (np.abs(u[j,i] + u[j,i+1])/2 * (u[j,i] - u[j,i+1])/2 \
-                                 - np.abs(u[j,i-1] + u[j,i])/2 * (u[j,i-1] - u[j,i])/2)
-                
-            duudx = 1/dx * (((u[j,i] + u[j,i+1])/2)**2 - ((u[j,i] + u[j,i-1])/2)**2) + adv_duudx
-            
-            adv_dvudy = nu/dy * (np.abs(v[j,i] + v[j,i+1])/2 * (u[j,i] - u[j+1,i])/2 \
-                                 - np.abs(v[j-1,i] + v[j-1,i+1])/2 * (u[j-1,i] - u[j,i])/2)
-            
-            dvudy = 1/dy * (v[j,i] + v[j,i+1])/2 * (u[j,i] + u[j+1,i])/2 \
-                    - (v[j-1,i] + v[j-1,i+1])/2 * (u[j-1,i] + u[j,i])/2 + adv_dvudy
-                    
-            d2udx2 = (u[j,i+1] - 2*u[j,i] + u[j,i-1])/dx**2
-            
-            d2udy2 = (u[j+1,i] - 2*u[j,i] + u[j-1,i])/dy**2
-            
-            u_frac[j,i] = dt * (mu/rho * (d2udx2 + d2udy2) - (duudx + dvudy)) + u[j,i]
-        
-    # y-momentum eqn. components
-    for i in interior_x_v:
-        for j in interior_y_v:
-            
-            adv_duvdx = nu/dx * (np.abs(u[j,i] + u[j+1,i])/2 * (v[j,i] - v[j,i+1])/2 \
-                                 - np.abs(u[j,i-1] + u[j+1,i-1])/2 * (v[j,i-1] - v[j,i])/2)
-            
-            duvdx = 1/dx * (u[j,i] + u[j+1,i])/2 * (v[j,i+1] + v[j,i])/2 \
-                    - (u[j,i-1] + u[j+1,i-1])/2 * (v[j,i] + v[j,i-1])/2 + adv_duvdx
-                    
-            adv_dvudy = nu/dy * (np.abs(v[j,i] + v[j+1,i])/2 * (v[j,i] - v[j+1,i])/2 \
-                                 - np.abs(v[j-1,i] + v[j,i])/2 * (v[j-1,i] - v[j,i])/2)
-                
-            dvvdy = 1/dy * ((v[j,i] + v[j+1,i])/2)**2 - ((v[j,i] + v[j-1,i])/2)**2 + adv_dvudy
-            
-            d2vdx2 = (v[j,i+1] - 2*v[j,i] + v[j,i-1])/dx**2
-            
-            d2vdy2 = (v[j+1,i] - 2*v[j,i] + v[j-1,i])/dy**2
-            
-            v_frac[j,i] = dt * (mu/rho * (d2vdx2 + d2vdy2) - (duvdx + dvvdy)) + v[j,i]
-    
-    """Step 2, solve Pressure Poisson eq."""
-    interior_x_p = range(1,len(x_p) - 1)
-    interior_y_p = range(1,len(y_p) - 1)
-    
-    # print(interior_y_p)
-    # print(interior_x_p)
-    
-    # print(len(interior_y_p))
-    # print(len(interior_x_p))
+    for j in interior_y_u:
+        for i in interior_x_u:
+            u_j_i = u[j, i]
+            u_j_i_plus_1 = u[j,i+1]
+            u_j_i_minus_1 = u[j,i-1]
+            v_j_i = v[j, i]
+            v_j_i_plus_1 = v[j,i+1]
+            v_j_minus_1_i = v[j-1,i]
+            v_j_minus_1_i_plus_1 = v[j-1,i+1]
+            u_j_plus_1_i = u[j+1,i]
+            u_j_minus_1_i = u[j-1,i]
 
-    
-    b = np.zeros_like(p)
-    
-    for i in interior_x_p:
-        for j in interior_y_p:
-                b[j,i] = 1/dt * ((u_frac[j,i] - u_frac[j,i-1]) / dx + \
-                              (v_frac[j,i] - v_frac[j-1,i]) / dy)
+            adv_duudx = nu/dx * (np.abs(u_j_i + u_j_i_plus_1) / 2 * (u_j_i - u_j_i_plus_1) / 2
+                                   - np.abs(u_j_i_minus_1 + u_j_i) / 2 * (u_j_i_minus_1 - u_j_i) / 2)
+
+            duudx = (1 / dx * (((u_j_i + u_j_i_plus_1) / 2) ** 2 - ((u_j_i + u_j_i_minus_1) / 2) ** 2) + adv_duudx)
+
+            adv_dvudy = nu / dy * (np.abs(v_j_i + v_j_i_plus_1) / 2 * (u_j_i - u_j_plus_1_i) / 2
+                                   - np.abs(v_j_minus_1_i + v_j_minus_1_i_plus_1) / 2 * (u_j_minus_1_i - u_j_i) / 2)
+
+            dvudy = (1 / dy * ((v_j_i + v_j_i_plus_1) / 2 * (u_j_i + u_j_plus_1_i) / 2
+                - (v_j_minus_1_i + v_j_minus_1_i_plus_1) / 2 * (u_j_minus_1_i + u_j_i) / 2)
+                + adv_dvudy)
+
+            d2udx2 = (u_j_i_plus_1 - 2 * u_j_i + u_j_i_minus_1) / dx**2
+            d2udy2 = (u_j_plus_1_i - 2 * u_j_i + u_j_minus_1_i) / dy**2
+
+            u_frac[j, i] = dt * (mu/rho * (d2udx2 + d2udy2) - (duudx + dvudy)) + u_j_i
+
+    for j in interior_y_v:
+        for i in interior_x_v:
+            v_j_i = v[j, i]
+            v_j_i_plus_1 = v[j,i+1]
+            v_j_i_minus_1 = v[j,i-1]
+            u_j_i = u[j,i]
+            u_j_plus_1_i = u[j+1,i]
+            u_j_i_minus_1 = u[j,i-1]
+            u_j_plus_1_i_minus_1 = u[j+1, i-1]
+            v_j_plus_1_i = v[j+1, i]
+            v_j_minus_1_i = v[j-1, i]
+
+            adv_duvdx = nu / dx * (np.abs(u_j_i + u_j_plus_1_i) / 2 * (v_j_i - v_j_i_plus_1) / 2
+                                   - np.abs(u_j_i_minus_1 + u_j_plus_1_i_minus_1) / 2 * (v_j_i_minus_1 - v_j_i) / 2)
+
+            duvdx = (1 / dx * ((u_j_i + u_j_plus_1_i) / 2 * (v_j_i_plus_1 + v_j_i) / 2 
+                               - (u_j_i_minus_1 + u_j_plus_1_i_minus_1) / 2 * (v_j_i + v_j_i_minus_1) / 2)
+                                 + adv_duvdx)
+
+            adv_dvudy = nu / dy * (np.abs(v_j_i + v_j_plus_1_i) / 2 * (v_j_i - v_j_plus_1_i) / 2
+                - np.abs(v_j_minus_1_i + v_j_i) / 2 * (v_j_minus_1_i - v_j_i) / 2)
+
+            dvvdy = (1 / dy
+                * (((v_j_i + v_j_plus_1_i) / 2) ** 2 - ((v_j_i + v_j_minus_1_i) / 2) ** 2)
+                + adv_dvudy)
+
+            d2vdx2 = (v_j_i_plus_1 - 2 * v_j_i + v_j_i_minus_1) / dx**2
+            d2vdy2 = (v_j_plus_1_i - 2 * v_j_i + v_j_minus_1_i) / dy**2
+
+            v_frac[j, i] = dt * (mu/rho * (d2vdx2 + d2vdy2) - (duvdx + dvvdy)) + v_j_i
+
+    # For-loop version for b calculation (pressure Poisson)
+    for j in range(1, len(y_p) - 1):
+        for i in range(1, len(x_p) - 1):
+            b[j, i] = (1 / dt
+                       * ((u_frac[j,i] - u_frac[j,i-1]) / dx + (v_frac[j,i] - v_frac[j-1,i]) / dy))
 
         
     tolerance = 1e-6  # Convergence tolerance
@@ -298,14 +307,14 @@ for n in range(nt):
                         (2 * (dx**2 + dy**2)) -
                         dx**2 * dy**2 / (2 * (dx**2 + dy**2)) * b[1:-1,1:-1])
 
-        # Apply pressure boundary conditions
+        # pressure boundary conditions
         p = apply_boundary_conditions(u_frac, v_frac, p)[2]
         max_diff = np.max(np.abs(p - pn))  # Maximum difference at any node
         if max_diff < tolerance:
-            print(f"Converged after {it+1} iterations with max_diff = {max_diff:.5e}")
+            print(f"n: {n}, Pressure convergence, iter: {it} iterations")
             break
     else:
-        print(f"n: {n}, Maximum iterations reached without convergence.")
+        print(f"n: {n}, pressure, did not converge")
     p_n = p
     
     # Update u-velocity
@@ -323,7 +332,7 @@ for n in range(nt):
     u_n, v_n, p_n = apply_boundary_conditions(u_n, v_n, p_n)
     
     
-    vel_tolerance = 1e-5
+    vel_tolerance = 1e-6
     p_tolerance = 1e-4
     
     u_max_diff = np.max(np.abs(u_n - u))
@@ -402,10 +411,10 @@ plt.show()
 
 enddt = dt
 
+print(f"dx:{dx} m, dy:{dy} m")
 print(f'startdt: {startdt}')
 print(f'enddt: {enddt}')
-# print('u_shape: ',u.shape)
-# print('v_shape: ',v.shape)
-# print('P_shape: ',p.shape)
 
-# print(u)
+print('u_shape: ',u.shape)
+print('v_shape: ',v.shape)
+print('P_shape: ',p.shape)
