@@ -9,6 +9,28 @@ Created on Tue Nov 19 00:09:06 2024
 import numpy as np
 import matplotlib.pyplot as plt
 
+def calculate_dt(u,v):
+    u_max = np.max(np.abs(u))
+    v_max = np.max(np.abs(v))
+    vel_dlength_max = max(u_max/dx,v_max/dy)
+    courrant_num_adjuster = 0.3
+    dt = 1/vel_dlength_max * courrant_num_adjuster
+    print(f'n: {n}, calculated dt: {dt}')
+    
+    # Viscous/diffusive dt?
+    dt_diff = dx**2/(mu/rho)
+    if dt_diff < dt:
+        print('\n\n\n\ndt_diff used!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\n\n\n')
+    return min(dt,dt_diff)
+
+def calculate_courrant(u,v,dt):
+    u_max = np.max(np.abs(u))
+    v_max = np.max(np.abs(v))
+    nu_u = u_max*dt/dx
+    nu_v = v_max*dt/dy
+    nu = np.max([nu_u,nu_v])
+    return nu
+
 def apply_boundary_conditions(u, v, p):
     # Left boundary, inflow BC
     u[:,0] = u_vel      # velocity at left-side boundary
@@ -34,32 +56,34 @@ def apply_boundary_conditions(u, v, p):
     return u, v, p
     
 def plot_velocity(u,v):
-    u_centered = 0.5 * (u[:-1, :-1] + u[1:, :-1])  # Average to cell centers in x-direction
-    v_centered = 0.5 * (v[:, :-1] + v[:, 1:])  # Average to cell centers in y-direction
+    u_centered = 0.5 * (u[:-1, :-1] + u[1:, :-1])   # Average to cell centers in x-direction
+    v_centered = 0.5 * (v[:, :-1] + v[:, 1:])       # Average to cell centers in y-direction
     velocity_magnitude = np.sqrt(u_centered**2 + v_centered**2)
     
     # New meshgrid for plotting
     x_plot = np.arange(u_centered.shape[1])
     y_plot = np.arange(u_centered.shape[0])
-    X_plot, Y_plot = np.meshgrid(x, y)
+    X_plot, Y_plot = np.meshgrid(x_plot, y_plot)
 
     # velocity contour
     plt.figure(figsize=(8, 6))
-    plt.contourf(X_plot, Y_plot, velocity_magnitude, levels=5, cmap='viridis')  # Contour plot
+    # plt.figure()
+    plt.contourf(X_plot, Y_plot, velocity_magnitude, levels=20, cmap='viridis')  # Contour plot
     plt.colorbar(label='Velocity Magnitude [m/s]')
     plt.xlabel('x')
     plt.ylabel('y')
     plt.title(f'Velocity Contour, n: {n}')
+    plt.axis('equal')
     plt.show()
     
 def plot_u_velocity(u,v):
-    u_centered = 0.5 * (u[:-1, :-1] + u[1:, :-1])  # Average to cell centers in x-direction
-    v_centered = 0.5 * (v[:, :-1] + v[:, 1:])  # Average to cell centers in y-direction
-    velocity_magnitude = np.sqrt(u_centered**2 + v_centered**2)
+    u_centered = 0.5 * (u[:-1, :-1] + u[1:, :-1])   # Average to cell centers in x-direction
+    # v_centered = 0.5 * (v[:, :-1] + v[:, 1:])       # Average to cell centers in y-direction
+    # velocity_magnitude = np.sqrt(u_centered**2 + v_centered**2)
     
     # New meshgrid for plotting
-    x_plot = np.arange(u_centered.shape[1])
-    y_plot = np.arange(u_centered.shape[0])
+    # x_plot = np.arange(u_centered.shape[1])
+    # y_plot = np.arange(u_centered.shape[0])
     X_plot, Y_plot = np.meshgrid(x, y)
     
     # u-velocity contour
@@ -68,17 +92,17 @@ def plot_u_velocity(u,v):
     plt.colorbar(label='Velocity Magnitude [m/s]')
     plt.xlabel('x')
     plt.ylabel('y')
-    plt.title(f'u-Velocity Contour')
+    plt.title(f'u-Velocity Contour, n: {n}')
     plt.show()
     
 def plot_v_velocity(u,v):
-    u_centered = 0.5 * (u[:-1, :-1] + u[1:, :-1])  # Average to cell centers in x-direction
-    v_centered = 0.5 * (v[:, :-1] + v[:, 1:])  # Average to cell centers in y-direction
-    velocity_magnitude = np.sqrt(u_centered**2 + v_centered**2)
+    # u_centered = 0.5 * (u[:-1, :-1] + u[1:, :-1])   # Average to cell centers in x-direction
+    v_centered = 0.5 * (v[:, :-1] + v[:, 1:])       # Average to cell centers in y-direction
+    # velocity_magnitude = np.sqrt(u_centered**2 + v_centered**2)
     
     # New meshgrid for plotting
-    x_plot = np.arange(u_centered.shape[1])
-    y_plot = np.arange(u_centered.shape[0])
+    # x_plot = np.arange(u_centered.shape[1])
+    # y_plot = np.arange(u_centered.shape[0])
     X_plot, Y_plot = np.meshgrid(x, y)
     
     # v-velocity contour
@@ -87,7 +111,7 @@ def plot_v_velocity(u,v):
     plt.colorbar(label='Velocity Magnitude [m/s]')
     plt.xlabel('x')
     plt.ylabel('y')
-    plt.title(f'v-Velocity Contour')
+    plt.title(f'v-Velocity Contour, n: {n}')
     plt.show()
     
 def plot_pressure(p):
@@ -97,17 +121,19 @@ def plot_pressure(p):
     plt.colorbar(label='Pressure [Pa]')
     plt.xlabel('x')
     plt.ylabel('y')
-    plt.title(f'Pressure Contour')
+    plt.title(f'Pressure Contour, n: {n}')
     plt.show()
     
 """Grid from class"""""
-u_vel = 1
+u_vel = 10 #m/s
 
-Lx = 5  # Length of domain in x-direction (change to 1)
-Ly = 5 # Length of domain in y-direction (change to 1)
+Lx = 50    # Length of domain in x-direction (change to 1)
+Ly = 25      # Length of domain in y-direction (change to 1)
 
-dx = Lx/10 #(change to 0.25)
-dy = Ly/10   #(change to 0.25)
+dx = Lx/(50)
+dy = Ly/(25)
+
+print(f"dx:{dx} m, dy:{dy} m")
 
 x = np.arange(0, Lx+dx, dx) # x-grid
 y = np.arange(0, Ly+dy, dy) # y-grid
@@ -115,12 +141,8 @@ y = np.arange(0, Ly+dy, dy) # y-grid
 M = len(x)  # num grid points, x
 N = len(y)  # num grid points, y
 
-print(M)
-print(N)
-
-nt = 10000
+nt = 1000
 n = 0
-
 
 x_u = np.arange(0, (Lx+dx), dx)          # u-velocity in x-nodes
 y_u = np.arange(0, (Ly+dy)+dy, dy)       # u-velocity in y-nodes
@@ -145,18 +167,19 @@ p = np.zeros([len(y_p),len(x_p)])
 # Implemented
 mu = 1.81*10.**-5.  #Pa-s
 rho = 1.184         #kg/ms
-dt = dx/u_vel * .1            #seconds
+dt = dx/u_vel * .9  #seconds
+startdt = dt
 
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 """BCs"""
 
-## Adding ghost nodes
 # Outflow BC at right boundary
+# Adding ghost nodes in x_u at right boundary
 x_u = np.arange(0, (Lx+dx) + dx, dx)  # Adding extra column of ghost nodes at right side boundary
 XU,YU = np.meshgrid(x_u,y_u)        # Recreating meshgrid for plotting
 u = np.zeros([len(y_u),len(x_u)])
 
-## Adding ghost nodes
+## Adding ghost nodes in x_p at right boundary
 x_p = np.arange(0,(Lx+dx)+dx + dx, dx)   # Adding extra column of ghost nodes at right side boundary
 XP, YP = np.meshgrid(x_p, y_p)      # Recreating meshgrid for plotting
 p = np.zeros([len(y_p),len(x_p)])
@@ -164,8 +187,8 @@ p = np.zeros([len(y_p),len(x_p)])
 u, v, p = apply_boundary_conditions(u,v,p)
 
 plot_velocity(u,v)
-plot_u_velocity(u,v)
-plot_v_velocity(u,v)
+# plot_u_velocity(u,v)
+# plot_v_velocity(u,v)
 plot_pressure(p)
 
 
@@ -191,11 +214,19 @@ interior_y_v = range(1,len(y_v) - 1)
 
 for n in range(nt):
     
-    u_max = np.max(np.abs(u))
-    v_max = np.max(np.abs(v))
-    nu_u = u_max*dt/dx
-    nu_v = v_max*dt/dy
-    nu = np.max([nu_u,nu_v])
+    nu = calculate_courrant(u,v,dt)
+    dt = calculate_dt(u,v)
+    
+    # print(f'n:{n}')
+    # print(f'u_max:{u_max}')
+    # print(f'v_max:{v_max}')
+    # print(f'nu_u:{nu_u}')
+    # print(f'nu_v:{nu_v}')
+    # print(f'u_dlength_max:{u_max/dx}')
+    # print(f'v_dlength_max:{v_max/dy}')
+    # print(f'new dt: {dt}')
+    
+    p_old = p_n.copy()
     
     for i in interior_x_u:
         for j in interior_y_u:
@@ -203,7 +234,7 @@ for n in range(nt):
             adv_duudx = nu/dx * (np.abs(u[j,i] + u[j,i+1])/2 * (u[j,i] - u[j,i+1])/2 \
                                  - np.abs(u[j,i-1] + u[j,i])/2 * (u[j,i-1] - u[j,i])/2)
                 
-            duudx = 1/dx * (((u[j,i]+u[j,i+1])/2)**2 - ((u[j,i]+u[j,i-1])/2)**2) + adv_duudx
+            duudx = 1/dx * (((u[j,i] + u[j,i+1])/2)**2 - ((u[j,i] + u[j,i-1])/2)**2) + adv_duudx
             
             adv_dvudy = nu/dy * (np.abs(v[j,i] + v[j,i+1])/2 * (u[j,i] - u[j+1,i])/2 \
                                  - np.abs(v[j-1,i] + v[j-1,i+1])/2 * (u[j-1,i] - u[j,i])/2)
@@ -247,7 +278,7 @@ for n in range(nt):
     
     # print(len(interior_y_p))
     # print(len(interior_x_p))
-    
+
     
     b = np.zeros_like(p)
     
@@ -257,8 +288,8 @@ for n in range(nt):
                               (v_frac[j,i] - v_frac[j-1,i]) / dy)
 
         
-        tolerance = 1e-5  # Convergence tolerance
-        max_iterations = 10000  # Maximum number of iterations to prevent infinite looping
+    tolerance = 1e-6  # Convergence tolerance
+    max_iterations = 100000  # Maximum number of iterations to prevent infinite looping
 
     for it in range(max_iterations):  # Maximum number of Poisson iterations per time step
         pn = p.copy()
@@ -271,7 +302,7 @@ for n in range(nt):
         p = apply_boundary_conditions(u_frac, v_frac, p)[2]
         max_diff = np.max(np.abs(p - pn))  # Maximum difference at any node
         if max_diff < tolerance:
-            # print(f"Converged after {it+1} iterations with max_diff = {max_diff:.5e}")
+            print(f"Converged after {it+1} iterations with max_diff = {max_diff:.5e}")
             break
     else:
         print(f"n: {n}, Maximum iterations reached without convergence.")
@@ -291,6 +322,20 @@ for n in range(nt):
     
     u_n, v_n, p_n = apply_boundary_conditions(u_n, v_n, p_n)
     
+    
+    vel_tolerance = 1e-5
+    p_tolerance = 1e-4
+    
+    u_max_diff = np.max(np.abs(u_n - u))
+    v_max_diff = np.max(np.abs(v_n - v))
+    p_max_diff = np.max(np.abs(p_n - p_old))
+    
+    max_vel_diff = max(u_max_diff, v_max_diff)  # combined velocity criterion
+    
+    if max_vel_diff < vel_tolerance and p_max_diff < p_tolerance and n!= 0:
+        print(f"Steady state, n: {n}")
+        break
+    
     u = u_n.copy()
     v = v_n.copy()
     p = p_n.copy()
@@ -298,7 +343,13 @@ for n in range(nt):
     
     if n % 10 == 0:
         plot_velocity(u,v)
+        print(f'n:{n}')
+        print(f'udiff: {u_max_diff}')
+        print(f'vdiff: {v_max_diff}')
+        print(f'pdiff: {p_max_diff}')
 
+    
+    
 
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 """Plotting"""
@@ -349,6 +400,10 @@ plt.axis('equal')  # Ensure equal aspect ratio
 plt.legend()
 plt.show()
 
+enddt = dt
+
+print(f'startdt: {startdt}')
+print(f'enddt: {enddt}')
 # print('u_shape: ',u.shape)
 # print('v_shape: ',v.shape)
 # print('P_shape: ',p.shape)
