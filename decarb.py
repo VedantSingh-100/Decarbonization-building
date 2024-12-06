@@ -9,6 +9,15 @@ Created on Tue Nov 19 00:09:06 2024
 import numpy as np
 import matplotlib.pyplot as plt
 
+
+""" vvv Number of iterations and wind profile vvv """
+
+nt = 1000
+apply_wind_profile = True
+
+""" ^^^ Number of iterations and wind profile^^^ """
+
+
 def calculate_dt(u,v):
     u_max = np.max(np.abs(u))
     v_max = np.max(np.abs(v))
@@ -33,7 +42,13 @@ def calculate_courrant(u,v,dt):
 
 def apply_boundary_conditions(u, v, p):
     # Left boundary, inflow BC
-    u[:,0] = u_vel      # velocity at left-side boundary
+    if apply_wind_profile:
+        y_padded = np.linspace(y[0] - dy / 2, y[-1] + dy / 2, len(u[:, 0]))
+        u[:, 0] = u_r * (y_padded / z_r) ** alpha
+    else:
+        u[:,0] = u_vel      # velocity at left-side boundary
+    
+    # Left boundary, inflow BC (continued)
     p[:,0] = p[:,1]     # dP/dx|x=0 = 0
     v[:,0] = 0          # v|x=0 = 0
     
@@ -60,9 +75,13 @@ def plot_velocity(u,v):
     v_centered = 0.5 * (v[:, :-1] + v[:, 1:])       # Average to cell centers in y-direction
     velocity_magnitude = np.sqrt(u_centered**2 + v_centered**2)
     
-    # New meshgrid for plotting
-    x_plot = np.arange(u_centered.shape[1])
-    y_plot = np.arange(u_centered.shape[0])
+    # # New meshgrid for plotting
+    # x_plot = np.arange(u_centered.shape[1])
+    # y_plot = np.arange(u_centered.shape[0])
+    # X_plot, Y_plot = np.meshgrid(x_plot, y_plot)
+    
+    x_plot = x[:u_centered.shape[1]]
+    y_plot = y[:u_centered.shape[0]]
     X_plot, Y_plot = np.meshgrid(x_plot, y_plot)
 
     # velocity contour
@@ -124,22 +143,24 @@ def plot_pressure(p):
     plt.title(f'Pressure Contour, n: {n}')
     plt.show()
     
-"""Grid from class"""""
+    
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+"""Grid"""""
 u_vel = 10 #m/s
 
 Lx = 50    # Length of domain in x-direction (change to 1)
 Ly = 25      # Length of domain in y-direction (change to 1)
 
-dx = Lx/(50*2)
-dy = Ly/(25*2)
+dx = Lx/(20)
+dy = Ly/(10)
+
+print(f"dx:{dx} m, dy:{dy} m")
 
 x = np.arange(0, Lx+dx, dx) # x-grid
 y = np.arange(0, Ly+dy, dy) # y-grid
 
-M = len(x)  # num grid points, x
-N = len(y)  # num grid points, y
-
-nt = 1000
+print(x)
 n = 0
 
 x_u = np.arange(0, (Lx+dx), dx)          # u-velocity in x-nodes
@@ -162,6 +183,9 @@ p = np.zeros([len(y_p),len(x_p)])
 
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 """wind"""
+u_r = 8.49      # m/s (reference wind speed)
+z_r = 10        # meters (reference height of measurement)
+alpha = 1/7
 # Implemented
 mu = 1.81*10.**-5.  #Pa-s
 rho = 1.184         #kg/ms
@@ -363,19 +387,33 @@ for n in range(nt):
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 """Plotting"""
 
-## wind profile
-# plt.figure()
-# plt.plot(u_z,y)
-# plt.title("Wind profile")
-# plt.xlabel("Velocity [m/s]")
-# plt.ylabel("height [m]")
-# plt.gca().yaxis.set_label_position("right")
-# plt.gca().yaxis.tick_right()
-# # plt.axhline(y=height_bldg * ft2m, color='gray', linestyle='--', linewidth=1, label=f'bldg. height')  # Add horizontal line
-# plt.axis('equal')
-# plt.gca().set_aspect(.25, adjustable='box')
-# plt.xlim(right=0)  
-# # plt.legend()
+# wind profile
+y_padded = np.linspace(y[0] - dy / 2, y[-1] + dy / 2, len(u[:, 0]))
+u_z = u_r * (y_padded/z_r)**alpha
+height_bldg = 18 # meters
+
+u[-1,:] = u[-2,:] # just for plotting
+y_fine = np.linspace(y[0], y[-1], 1000)  
+u_z_fine = -u_r * (y_fine / z_r) ** alpha  
+
+height_bldg = 18  # meters
+
+plt.figure()
+plt.plot(u_z_fine, y_fine, label='Analytical Wind Profile', color='blue', linewidth=2)  # Smooth analytical
+plt.plot(-u[:, 0], y_padded, label='Discretized Wind Profile', color='orange', linestyle='--', linewidth=2)  # Discretized
+plt.axhline(y=height_bldg, color='gray', linestyle='--', linewidth=1, label=f'Bldg. Height ({height_bldg} m)')
+
+plt.title("Wind Profile")
+plt.xlabel("Velocity [m/s]")
+plt.ylabel("Height [m]")
+plt.gca().yaxis.set_label_position("right")
+plt.gca().yaxis.tick_right()
+plt.gca().set_aspect(0.25, adjustable='box')  
+plt.xlim(right=0)
+plt.legend()
+plt.grid(True)
+plt.show()
+
 
 
 plt.figure(figsize=(12, 8))
@@ -418,3 +456,5 @@ print(f'enddt: {enddt}')
 print('u_shape: ',u.shape)
 print('v_shape: ',v.shape)
 print('P_shape: ',p.shape)
+
+# print(u[:])
