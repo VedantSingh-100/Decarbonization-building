@@ -10,10 +10,21 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-""" vvv Number of iterations and wind profile vvv """
+""" vvv Number of iterations and wind profile vvv  and other parameters"""
 
-nt = 1000
-apply_wind_profile = True
+nt = 1000 #timesteps
+apply_wind_profile = False #apply power-law profile (true) or uniform profile)
+
+u_vel = 1      # m/s (uniform wind profile speed)
+u_r = 8.49      # m/s (reference wind speed)
+z_r = 6        # feet (reference height of measurement)
+
+
+Lx = 50    # Length of domain in x-direction (change to 1)
+Ly = 10      # Length of domain in y-direction (change to 1)
+
+dx = Lx/(20)
+dy = Ly/(20)
 
 """ ^^^ Number of iterations and wind profile^^^ """
 
@@ -40,7 +51,7 @@ def calculate_courrant(u,v,dt):
     nu = np.max([nu_u,nu_v])
     return nu
 
-def apply_boundary_conditions(u, v, p):
+def apply_boundary_conditions(u, v, p, c):
     # Left boundary, inflow BC
     if apply_wind_profile:
         y_padded = np.linspace(y[0] - dy / 2, y[-1] + dy / 2, len(u[:, 0]))
@@ -68,6 +79,9 @@ def apply_boundary_conditions(u, v, p):
     u[0,:] = -u[1,:]    # no slip at bottom wall
     p[0,:] = p[1,:]     # bottom wall, horizontal wall dP/dy = 0 
     v[0,:] = 0          # bottom wall (ground), v = 0
+    
+    # c[:,1] = 1
+    
     return u, v, p
     
 def plot_velocity(u,v):
@@ -93,6 +107,10 @@ def plot_velocity(u,v):
     plt.ylabel('y')
     plt.title(f'Velocity Contour, n: {n}')
     plt.axis('equal')
+    for xc in x:
+        plt.axvline(x=xc, color='white', linestyle='--', linewidth=0.5)
+    for yc in y:
+        plt.axhline(y=yc, color='white', linestyle='--', linewidth=0.5)
     plt.show()
     
 def plot_u_velocity(u,v):
@@ -143,18 +161,39 @@ def plot_pressure(p):
     plt.title(f'Pressure Contour, n: {n}')
     plt.show()
     
+def plot_scalar(c):
+    # pressure contour
+    # plt.figure(figsize=(8, 6))
+    # plt.contourf(XP, YP, p, levels=10, cmap='coolwarm')  # Contour plot
+    # plt.colorbar(label='Pressure [Pa]')
+    # plt.xlabel('x')
+    # plt.ylabel('y')
+    # plt.title(f'Pressure Contour, n: {n}')
+    # plt.show()
+    
+    # scalar contour
+    vmin = 0
+    vmax = .1
+    c = np.clip(c, vmin, vmax)
+    plt.figure(figsize=(8, 6))
+    # plt.contourf(XP, YP, c, levels=20, cmap='coolwarm') # Contour plot
+    plt.contourf(XP, YP, c, levels=np.linspace(vmin, vmax, 21), cmap='coolwarm')  # Contour plot
+    plt.colorbar(label='Scalar concentration [c]')
+    plt.xlabel('x')
+    plt.ylabel('y')
+    plt.title(f'Scalar Concentration Contour, n: {n}')
+    plt.axis('equal')
+    
+    for xc in x:
+        plt.axvline(x=xc, color='white', linestyle='--', linewidth=0.5)
+    for yc in y:
+        plt.axhline(y=yc, color='white', linestyle='--', linewidth=0.5)
+    plt.show()
+
     
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
-"""Grid"""""
-u_vel = 10 #m/s
-
-Lx = 50    # Length of domain in x-direction (change to 1)
-Ly = 25      # Length of domain in y-direction (change to 1)
-
-dx = Lx/(20)
-dy = Ly/(10)
-
+"""Grid and field initialization"""""
 print(f"dx:{dx} m, dy:{dy} m")
 
 x = np.arange(0, Lx+dx, dx) # x-grid
@@ -181,14 +220,26 @@ y_p = np.arange(0,(Ly+dy)+dy, dy)        # Pressure y-nodes
 XP, YP = np.meshgrid(x_p, y_p)
 p = np.zeros([len(y_p),len(x_p)])
 
+c = np.zeros_like(p) #scalar transport
+c[2:-2,1] = 10
+
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 """wind"""
+u_vel = 10      # m/s (uniform wind profile speed)
 u_r = 8.49      # m/s (reference wind speed)
-z_r = 10        # meters (reference height of measurement)
+z_r = 6        # feet (reference height of measurement)
+z_r = z_r * .3048 # ft --> meters
 alpha = 1/7
 # Implemented
 mu = 1.81*10.**-5.  #Pa-s
 rho = 1.184         #kg/ms
+
+if apply_wind_profile:
+    y_padded = np.linspace(y[0] - dy / 2, y[-1] + dy / 2, len(u[:, 0]))
+    u[:, 0] = u_r * (y_padded / z_r) ** alpha
+else:
+    u[:,0] = u_vel      # velocity at left-side boundary
+    
 dt = dx/u_vel * .9  #seconds
 startdt = dt
 
@@ -202,11 +253,11 @@ XU,YU = np.meshgrid(x_u,y_u)        # Recreating meshgrid for plotting
 u = np.zeros([len(y_u),len(x_u)])
 
 ## Adding ghost nodes in x_p at right boundary
-x_p = np.arange(0,(Lx+dx)+dx + dx, dx)   # Adding extra column of ghost nodes at right side boundary
-XP, YP = np.meshgrid(x_p, y_p)      # Recreating meshgrid for plotting
-p = np.zeros([len(y_p),len(x_p)])
+# x_p = np.arange(0,(Lx+dx)+dx + dx, dx)   # Adding extra column of ghost nodes at right side boundary
+# XP, YP = np.meshgrid(x_p, y_p)      # Recreating meshgrid for plotting
+# p = np.zeros([len(y_p),len(x_p)])
 
-u, v, p = apply_boundary_conditions(u,v,p)
+u, v, p = apply_boundary_conditions(u,v,p,c)
 
 print('u_shape: ',u.shape)
 print('v_shape: ',v.shape)
@@ -227,6 +278,8 @@ plot_pressure(p)
 u_n = u*0
 v_n = v*0
 p_n = p*0
+c_n = c.copy()
+c_old = c.copy()
 
 u_frac = u*0
 v_frac = v*0
@@ -314,7 +367,7 @@ for n in range(nt):
 
             v_frac[j, i] = dt * (mu/rho * (d2vdx2 + d2vdy2) - (duvdx + dvvdy)) + v_j_i
 
-    # For-loop version for b calculation (pressure Poisson)
+    # b calculation (pressure Poisson)
     for j in range(1, len(y_p) - 1):
         for i in range(1, len(x_p) - 1):
             b[j, i] = (1 / dt
@@ -332,7 +385,7 @@ for n in range(nt):
                         dx**2 * dy**2 / (2 * (dx**2 + dy**2)) * b[1:-1,1:-1])
 
         # pressure boundary conditions
-        p = apply_boundary_conditions(u_frac, v_frac, p)[2]
+        p = apply_boundary_conditions(u_frac, v_frac, p, c)[2]
         max_diff = np.max(np.abs(p - pn))  # Maximum difference at any node
         if max_diff < tolerance:
             print(f"n: {n}, Pressure convergence, iter: {it} iterations")
@@ -353,9 +406,19 @@ for n in range(nt):
             dpdy = (p[j+1, i] - p[j, i]) / dy  # Pressure gradient in y
             v_n[j, i] = v_frac[j, i] - dt * dpdy  # Update v
     
-    u_n, v_n, p_n = apply_boundary_conditions(u_n, v_n, p_n)
+    u_n, v_n, p_n = apply_boundary_conditions(u_n, v_n, p_n, c_n)
+    
+    """scalar transport"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+    for j in range(1, len(y_v) - 1):
+        for i in range(1, len(x_u) - 1):
+            ducdx = (1/dx * (u_n[j,i] * (c[j,i+1] + c[j,i])/2)
+                    - u_n[j,i-1] * (c[j,i] + c[j,i-1])/2)
+            dvcdy = (1/dy * (v_n[j+1,i] * (c[j+1,i] + c[j,i])/2)
+                    - v_n[j-1,i] * (c[j,i] + c[j-1,i])/2)
+            c_n[j,i] = dt * -(ducdx + dvcdy) + c[j,i]
     
     
+    """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
     vel_tolerance = 1e-6
     p_tolerance = 1e-4
     
@@ -372,10 +435,11 @@ for n in range(nt):
     u = u_n.copy()
     v = v_n.copy()
     p = p_n.copy()
+    c = c_n.copy()
     
-    
-    if n % 10 == 0:
-        plot_velocity(u,v)
+    if n % 1 == 0:
+        # plot_velocity(u_n,v_n)
+        plot_scalar(c_n)
         print(f'n:{n}')
         print(f'udiff: {u_max_diff}')
         print(f'vdiff: {v_max_diff}')
@@ -456,5 +520,9 @@ print(f'enddt: {enddt}')
 print('u_shape: ',u.shape)
 print('v_shape: ',v.shape)
 print('P_shape: ',p.shape)
+
+print(f'c old: {c_old}')
+
+print(f'c new: {c_n}')
 
 # print(u[:])
