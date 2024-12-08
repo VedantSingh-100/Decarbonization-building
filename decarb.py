@@ -13,18 +13,18 @@ import matplotlib.pyplot as plt
 """ vvv Number of iterations and wind profile vvv  and other parameters"""
 
 nt = 1000 #timesteps
-apply_wind_profile = False #apply power-law profile (true) or uniform profile)
+apply_wind_profile = True #apply power-law profile (true) or uniform profile)
 
-u_vel = 1      # m/s (uniform wind profile speed)
+u_vel = 2      # m/s (uniform wind profile speed)
 u_r = 8.49      # m/s (reference wind speed)
 z_r = 6        # feet (reference height of measurement)
 
 
-Lx = 50    # Length of domain in x-direction (change to 1)
-Ly = 10      # Length of domain in y-direction (change to 1)
+Lx = 60    # Length of domain in x-direction (change to 1)
+Ly = 20      # Length of domain in y-direction (change to 1)
 
-dx = Lx/(20)
-dy = Ly/(20)
+dx = Lx/(180)
+dy = Ly/(60)
 
 """ ^^^ Number of iterations and wind profile^^^ """
 
@@ -34,14 +34,14 @@ def calculate_dt(u,v):
     v_max = np.max(np.abs(v))
     vel_dlength_max = max(u_max/dx,v_max/dy)
     courrant_num_adjuster = 0.3
-    dt = 1/vel_dlength_max * courrant_num_adjuster
+    dt = 1/vel_dlength_max
     print(f'n: {n}, calculated dt: {dt}')
     
     # Viscous/diffusive dt?
     dt_diff = dx**2/(mu/rho)
     if dt_diff < dt:
         print('\n\n\n\ndt_diff used!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\n\n\n')
-    return min(dt,dt_diff)
+    return courrant_num_adjuster*min(dt,dt_diff)
 
 def calculate_courrant(u,v,dt):
     u_max = np.max(np.abs(u))
@@ -58,10 +58,11 @@ def apply_boundary_conditions(u, v, p, c):
         u[:, 0] = u_r * (y_padded / z_r) ** alpha
     else:
         u[:,0] = u_vel      # velocity at left-side boundary
+        # v[1,:] = u_vel      # velocity at left-side boundary
     
     # Left boundary, inflow BC (continued)
     p[:,0] = p[:,1]     # dP/dx|x=0 = 0
-    v[:,0] = 0          # v|x=0 = 0
+    v[:,0] = 0         # v|x=0 = 0
     
     # Right boundary, outflow BC
     u[:,-1] = u[:,-2]   # u(M+1,1) = u(M,1)
@@ -80,7 +81,11 @@ def apply_boundary_conditions(u, v, p, c):
     p[0,:] = p[1,:]     # bottom wall, horizontal wall dP/dy = 0 
     v[0,:] = 0          # bottom wall (ground), v = 0
     
-    # c[:,1] = 1
+    # Top boundary, wall
+    # c[-1,:] = -c[-2,:]  # no slip at top wall
+    # c[0,:] = -c[1,:]    # no slip at bottom wall
+    # c[:,0] = c[:,1]     # dP/dx|x=0 = 0
+    # c[:,-1] = c[:,-2]   # u(M+1,1) = u(M,1)
     
     return u, v, p
     
@@ -173,11 +178,11 @@ def plot_scalar(c):
     
     # scalar contour
     vmin = 0
-    vmax = .1
-    c = np.clip(c, vmin, vmax)
+    vmax = 2
+    # c = np.clip(c, vmin, vmax)
     plt.figure(figsize=(8, 6))
-    # plt.contourf(XP, YP, c, levels=20, cmap='coolwarm') # Contour plot
-    plt.contourf(XP, YP, c, levels=np.linspace(vmin, vmax, 21), cmap='coolwarm')  # Contour plot
+    plt.contourf(XP, YP, c, levels=20, cmap='coolwarm') # Contour plot
+    # plt.contourf(XP, YP, c, levels=np.linspace(vmin, vmax, 21), cmap='coolwarm')  # Contour plot
     plt.colorbar(label='Scalar concentration [c]')
     plt.xlabel('x')
     plt.ylabel('y')
@@ -205,7 +210,7 @@ n = 0
 x_u = np.arange(0, (Lx+dx), dx)          # u-velocity in x-nodes
 y_u = np.arange(0, (Ly+dy)+dy, dy)       # u-velocity in y-nodes
 XU,YU = np.meshgrid(x_u,y_u)
-u = np.zeros([len(y_u),len(x_u)])
+u = np.zeros([len(y_u),len(x_u)])*2
 
 # v-vel
 x_v = np.arange(0, (Lx+dx)+dx, dx)       # v-velocity, x-nodes
@@ -221,16 +226,13 @@ XP, YP = np.meshgrid(x_p, y_p)
 p = np.zeros([len(y_p),len(x_p)])
 
 c = np.zeros_like(p) #scalar transport
-c[2:-2,1] = 10
+midpoint = len(c) // 2
+#TODO
+#c[4,4] = 10
 
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 """wind"""
-u_vel = 10      # m/s (uniform wind profile speed)
-u_r = 8.49      # m/s (reference wind speed)
-z_r = 6        # feet (reference height of measurement)
-z_r = z_r * .3048 # ft --> meters
 alpha = 1/7
-# Implemented
 mu = 1.81*10.**-5.  #Pa-s
 rho = 1.184         #kg/ms
 
@@ -281,7 +283,7 @@ p_n = p*0
 c_n = c.copy()
 c_old = c.copy()
 
-u_frac = u*0
+u_frac = u*2
 v_frac = v*0
 
 interior_x_u = range(1, len(x_u) - 1)
@@ -292,7 +294,28 @@ interior_y_v = range(1, len(y_v) - 1)
 b = np.zeros_like(p)
 
 
+num_particles = 20
+particles = np.zeros((num_particles, 2))  # Each row is [x, y]
+
+# particles x-coords
+particles[:, 0] = 0  # x-coordinate is fixed
+
+# particle y-coords
+particles[:, 1] = np.linspace(1, Ly-1, num_particles)
+
+
 for n in range(nt):
+        
+    if n == 30:
+        c[5,5] = 1
+        c_old = c.copy()
+        # print(f'start c at n:{n}: ')
+        
+    # if n == (nt//2 + 6):
+    #     # c[4,4] = 10
+    #     c_1 = c_n.copy()
+
+    
     nu = calculate_courrant(u, v, dt)
     dt = calculate_dt(u, v)
     
@@ -374,7 +397,7 @@ for n in range(nt):
                        * ((u_frac[j,i] - u_frac[j,i-1]) / dx + (v_frac[j,i] - v_frac[j-1,i]) / dy))
 
         
-    tolerance = 1e-6  # Convergence tolerance
+    tolerance = 1e-4  # Convergence tolerance
     max_iterations = 100000  # Maximum number of iterations to prevent infinite looping
 
     for it in range(max_iterations):  # Maximum number of Poisson iterations per time step
@@ -415,7 +438,9 @@ for n in range(nt):
                     - u_n[j,i-1] * (c[j,i] + c[j,i-1])/2)
             dvcdy = (1/dy * (v_n[j+1,i] * (c[j+1,i] + c[j,i])/2)
                     - v_n[j-1,i] * (c[j,i] + c[j-1,i])/2)
-            c_n[j,i] = dt * -(ducdx + dvcdy) + c[j,i]
+            c_n[j,i] = dt * -(ducdx + dvcdy) + c[j,i]#
+            # c_n[j,i] = c[j,i] - dt * (ducdx + dvcdy)
+
     
     
     """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -431,29 +456,76 @@ for n in range(nt):
     if max_vel_diff < vel_tolerance and p_max_diff < p_tolerance and n!= 0:
         print(f"Steady state, n: {n}")
         break
-    
+    # print(f'c {n}: {c}')
+
     u = u_n.copy()
     v = v_n.copy()
     p = p_n.copy()
     c = c_n.copy()
     
-    if n % 1 == 0:
-        # plot_velocity(u_n,v_n)
-        plot_scalar(c_n)
-        print(f'n:{n}')
-        print(f'udiff: {u_max_diff}')
-        print(f'vdiff: {v_max_diff}')
-        print(f'pdiff: {p_max_diff}')
+    # if n % 1 == 0:
+        # plot_scalar(u_n,v_n)
+        # plot_scalar(c)
+    
+    for k in range(num_particles):
+        particle_x, particle_y = particles[k]
+    
+        # ensures particles remain within domain
+        i = min(max(int(particle_x / dx), 0), len(x_u) - 2) 
+        j = min(max(int(particle_y / dy), 0), len(y_u) - 2) 
+    
+        # interp for u velocity
+        u_interp = (u[j,i] * (1 - (particle_x % dx) / dx) * (1 - (particle_y % dy) / dy) +
+                    u[j,i+1] * ((particle_x % dx) / dx) * (1 - (particle_y % dy) / dy) +
+                    u[j+1,i] * (1 - (particle_x % dx) / dx) * ((particle_y % dy) / dy) +
+                    u[j+1,i+1] * ((particle_x % dx) / dx) * ((particle_y % dy) / dy))
+    
+        # interp for v velocity
+        v_interp = (v[j,i] * (1 - (particle_x % dx) / dx) * (1 - (particle_y % dy) / dy) +
+                    v[j,i+1] * ((particle_x % dx) / dx) * (1 - (particle_y % dy) / dy) +
+                    v[j+1,i] * (1 - (particle_x % dx) / dx) * ((particle_y % dy) / dy) +
+                    v[j+1,i+1] * ((particle_x % dx) / dx) * ((particle_y % dy) / dy))
+    
+        # Update particle position
+        particle_x += u_interp * dt
+        particle_y += v_interp * dt
+    
+        # Reflect particle if it hits the boundary
+        particle_x = max(0, min(Lx, particle_x))
+        particle_y = max(0, min(Ly, particle_y))
+    
+        # Store updated position
+        particles[k] = [particle_x, particle_y]
 
+        # Extract x and y positions of all particles
+    particle_x_positions = particles[:, 0]
+    particle_y_positions = particles[:, 1]
     
-    
+    # Plot particle positions
+    plt.figure(figsize=(8, 6))
+    plt.scatter(particle_x_positions, particle_y_positions, color='red', label='Particles')  # Adjust y
+    plt.xlim(0, Lx)
+    plt.ylim(0, Ly)
+    plt.xlabel('x [m]')
+    plt.ylabel('y [m]')
+    plt.title('Particle Trajectories')
+    plt.gca().set_aspect('equal', adjustable='box')
+    plt.legend()
+    # plt.grid(True, which='both', linestyle='--', color='gray', linewidth=0.5)
+    for xc in x:
+        plt.axvline(x=xc, color='black', linestyle='--', linewidth=0.5)
+    for yc in y:
+        plt.axhline(y=yc, color='black', linestyle='--', linewidth=0.5)
+    plt.show()
+
+
 
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 """Plotting"""
 
 # wind profile
 y_padded = np.linspace(y[0] - dy / 2, y[-1] + dy / 2, len(u[:, 0]))
-u_z = u_r * (y_padded/z_r)**alpha
+# u_z = u_r * (y_padded/z_r)**alpha
 height_bldg = 18 # meters
 
 u[-1,:] = u[-2,:] # just for plotting
@@ -522,7 +594,9 @@ print('v_shape: ',v.shape)
 print('P_shape: ',p.shape)
 
 print(f'c old: {c_old}')
-
+print(f'c 1: {c_old}')
 print(f'c new: {c_n}')
-
-# print(u[:])
+cmax = np.max(c_n)
+cmax_loc = np.argmax(c_n)
+rowmax, colmax = np.unravel_index(cmax_loc,c.shape)
+print(f'max_c:{cmax} at x:{colmax} and y:{rowmax}')
