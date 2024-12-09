@@ -1,34 +1,45 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Nov 19 00:09:06 2024
-
-@author: tejjolly
-"""
-
 import numpy as np
 import matplotlib.pyplot as plt
 
 
 """ vvv Number of iterations and wind profile vvv  and other parameters"""
 
-nt = 1000 #timesteps
+nt = 10000 #timesteps
 apply_wind_profile = True #apply power-law profile (true) or uniform profile)
+apply_obstacle_mask = True  # Set to False to disable the obstacle mask
 
-u_vel = 2      # m/s (uniform wind profile speed)
+
+u_vel = 1      # m/s (uniform wind profile speed)
+v_vel = 0      # m/s (uniform wind profile speed)
 u_r = 8.49      # m/s (reference wind speed)
 z_r = 6        # feet (reference height of measurement)
 
 
-Lx = 60    # Length of domain in x-direction (change to 1)
-Ly = 20      # Length of domain in y-direction (change to 1)
+Lx = 200    # Length of domain in x-direction (change to 1)
+Ly = 150     # Length of domain in y-direction (change to 1)
 
-dx = Lx/(180)
-dy = Ly/(60)
+dx = 10
+dy = 10
 
 """ ^^^ Number of iterations and wind profile^^^ """
 
-
+def plot_particles(particle_x_positions,particle_y_positions):
+    plt.figure(figsize=(8, 6))
+    plt.scatter(particle_x_positions, particle_y_positions, color='red', label='Particles')  # Adjust y
+    plt.xlim(0, Lx)
+    plt.ylim(0, Ly)
+    plt.xlabel('x [m]')
+    plt.ylabel('y [m]')
+    plt.title('Particle Trajectories')
+    plt.gca().set_aspect('equal', adjustable='box')
+    plt.legend()
+    # plt.grid(True, which='both', linestyle='--', color='gray', linewidth=0.5)
+    for xc in x:
+        plt.axvline(x=xc, color='black', linestyle='--', linewidth=0.5)
+    for yc in y:
+        plt.axhline(y=yc, color='black', linestyle='--', linewidth=0.5)
+    plt.show()
+    
 def calculate_dt(u,v):
     u_max = np.max(np.abs(u))
     v_max = np.max(np.abs(v))
@@ -58,7 +69,7 @@ def apply_boundary_conditions(u, v, p, c):
         u[:, 0] = u_r * (y_padded / z_r) ** alpha
     else:
         u[:,0] = u_vel      # velocity at left-side boundary
-        # v[1,:] = u_vel      # velocity at left-side boundary
+        v[1,:] = v_vel      # velocity at left-side boundary
     
     # Left boundary, inflow BC (continued)
     p[:,0] = p[:,1]     # dP/dx|x=0 = 0
@@ -66,14 +77,18 @@ def apply_boundary_conditions(u, v, p, c):
     
     # Right boundary, outflow BC
     u[:,-1] = u[:,-2]   # u(M+1,1) = u(M,1)
-    p[:,-2] = 0         # P|x=Lx = 0 (0 gauge outlet)
-    p[:,-1] = -p[:,-2]  # P(M+1,1) = -P(M,1)
+    p[:,-1] = 0         # P|x=Lx = 0 (0 gauge outlet)
+    # p[:,-1] = p[:,-2]  # P(M+1,1) = -P(M,1)
     v[:,-1] = v[:,-2]   # dv/dx = 0
     
-    # Top boundary, wall
-    u[-1,:] = -u[-2,:]  # no slip at top wall
-    p[-1,:] = p[-2,:]   # top wall, horizontal wall dP/dy = 0
-    v[-1,:] = 0         # impermeable wall, v = 0
+    # # Top boundary, outflow
+    # u[-1,:] = -u[-2,:]  # no slip at top wall
+    # p[-1,:] = p[-2,:]   # top wall, horizontal wall dP/dy = 0
+    # v[-1,:] = 0         # impermeable wall, v = 0
+    # Top boundary, pressure outlet
+    u[-1, :] = u[-2, :]  # Zero gradient for horizontal velocity
+    v[-1, :] = v[-2, :]  # Zero gradient for vertical velocity
+    p[-1, :] = 0         # Zero gauge pressure
      
     
     # Bottom boundary, wall
@@ -254,6 +269,10 @@ x_u = np.arange(0, (Lx+dx) + dx, dx)  # Adding extra column of ghost nodes at ri
 XU,YU = np.meshgrid(x_u,y_u)        # Recreating meshgrid for plotting
 u = np.zeros([len(y_u),len(x_u)])
 
+# y_v = np.arange(0,(Ly+dy) + dy, dy)      # Adding extra column of ghost nodes at right side boundary
+# XV,YV = np.meshgrid(x_u,y_u)        # Recreating meshgrid for plotting
+# v = np.zeros([len(y_v),len(x_v)])
+
 ## Adding ghost nodes in x_p at right boundary
 # x_p = np.arange(0,(Lx+dx)+dx + dx, dx)   # Adding extra column of ghost nodes at right side boundary
 # XP, YP = np.meshgrid(x_p, y_p)      # Recreating meshgrid for plotting
@@ -294,25 +313,38 @@ interior_y_v = range(1, len(y_v) - 1)
 b = np.zeros_like(p)
 
 
-num_particles = 20
+num_particles = 100
 particles = np.zeros((num_particles, 2))  # Each row is [x, y]
 
 # particles x-coords
 particles[:, 0] = 0  # x-coordinate is fixed
 
 # particle y-coords
-particles[:, 1] = np.linspace(1, Ly-1, num_particles)
+particles[:, 1] = np.linspace(2, Ly-1, num_particles)
 
 
 ### Define obstacle region in the middle of the domain ###
-obstacle_x_min = Lx/3
-obstacle_x_max = 2*Lx/3
-obstacle_y_min = Ly/3
-obstacle_y_max = 2*Ly/3
+obstacle_x_min = Lx/5
+obstacle_x_max = obstacle_x_min+10
+obstacle_y_min = 0
+obstacle_y_max = 20
 
-obstacle_mask_u = (XU >= obstacle_x_min) & (XU <= obstacle_x_max) & (YU >= obstacle_y_min) & (YU <= obstacle_y_max)
-obstacle_mask_v = (XV >= obstacle_x_min) & (XV <= obstacle_x_max) & (YV >= obstacle_y_min) & (YV <= obstacle_y_max)
-obstacle_mask_p = (XP >= obstacle_x_min) & (XP <= obstacle_x_max) & (YP >= obstacle_y_min) & (YP <= obstacle_y_max)
+# obstacle_mask_u = (XU >= obstacle_x_min) & (XU <= obstacle_x_max) & (YU >= obstacle_y_min) & (YU <= obstacle_y_max)
+# obstacle_mask_v = (XV >= obstacle_x_min) & (XV <= obstacle_x_max) & (YV >= obstacle_y_min) & (YV <= obstacle_y_max)
+# obstacle_mask_p = (XP >= obstacle_x_min) & (XP <= obstacle_x_max) & (YP >= obstacle_y_min) & (YP <= obstacle_y_max)
+# obstacle_mask_c = (XP >= obstacle_x_min) & (XP <= obstacle_x_max) & (YP >= obstacle_y_min) & (YP <= obstacle_y_max)
+
+if apply_obstacle_mask:
+    obstacle_mask_u = (XU >= obstacle_x_min) & (XU <= obstacle_x_max) & (YU >= obstacle_y_min) & (YU <= obstacle_y_max)
+    obstacle_mask_v = (XV >= obstacle_x_min) & (XV <= obstacle_x_max) & (YV >= obstacle_y_min) & (YV <= obstacle_y_max)
+    obstacle_mask_p = (XP >= obstacle_x_min) & (XP <= obstacle_x_max) & (YP >= obstacle_y_min) & (YP <= obstacle_y_max)
+    obstacle_mask_c = (XP >= obstacle_x_min) & (XP <= obstacle_x_max) & (YP >= obstacle_y_min) & (YP <= obstacle_y_max)
+else:
+    obstacle_mask_u = np.zeros_like(XU, dtype=bool)
+    obstacle_mask_v = np.zeros_like(XV, dtype=bool)
+    obstacle_mask_p = np.zeros_like(XP, dtype=bool)
+    obstacle_mask_c = np.zeros_like(XP, dtype=bool)
+
 
 # Ensure initial obstacle velocities are zero
 u[obstacle_mask_u] = 0
@@ -321,7 +353,7 @@ v[obstacle_mask_v] = 0
 for n in range(nt):
         
     if n == 30:
-        c[5,5] = 1
+        c[5,5] = 0
         c_old = c.copy()
         # print(f'start c at n:{n}: ')
         
@@ -451,14 +483,24 @@ for n in range(nt):
     v_n[obstacle_mask_v] = 0
     
     """scalar transport"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-    for j in range(1, len(y_v) - 1):
-        for i in range(1, len(x_u) - 1):
-            ducdx = (1/dx * (u_n[j,i] * (c[j,i+1] + c[j,i])/2)
-                    - u_n[j,i-1] * (c[j,i] + c[j,i-1])/2)
-            dvcdy = (1/dy * (v_n[j+1,i] * (c[j+1,i] + c[j,i])/2)
-                    - v_n[j-1,i] * (c[j,i] + c[j-1,i])/2)
-            c_n[j,i] = dt * -(ducdx + dvcdy) + c[j,i]#
-            # c_n[j,i] = c[j,i] - dt * (ducdx + dvcdy)
+    for j in range(1, len(y_p) - 3):
+        for i in range(1, len(x_p) - 2):
+            if u[j,i] > 0:
+                ducdx = (1/dx * (c_n[j,i] * (u[j,i] + u[j,i-1])/2)
+                        - c_n[j,i-1] * (u[j,i-1] + u[j,i-2])/2)
+            else:
+                ducdx = (1/dx * (c_n[j,i] * (u[j,i] + u[j,i+1])/2)
+                    - c_n[j,i+1] * (u[j,i+1] + u[j,i+2])/2)
+                
+            if v[j,i] > 0:
+                dvcdy = (1/dy * (c_n[j,i] * (v[j,i] + v[j-1,i])/2)
+                    - c_n[j-1,i] * (v[j-1,i] + v[j-2,i])/2)
+            else:
+                dvcdy = (1/dy * (c_n[j,i] * (v[j,i] + v[j+1,i])/2)
+                    - c_n[j+1,i] * (v[j+1,i] + v[j+2,i])/2)
+                
+            c_n[j,i] = dt * -(ducdx + dvcdy) + c[j,i]
+            c_n[obstacle_mask_c] = 0
 
     
     
@@ -473,7 +515,13 @@ for n in range(nt):
     max_vel_diff = max(u_max_diff, v_max_diff)  # combined velocity criterion
     
     if max_vel_diff < vel_tolerance and p_max_diff < p_tolerance and n!= 0:
-        print(f"Steady state, n: {n}")
+    # if p_max_diff < p_tolerance and n!= 0:
+
+        # print(f"Steady state, n: {n}")
+        # obstacle_mask_u = (XU >= obstacle_x_min) & (XU <= obstacle_x_max) & (YU >= obstacle_y_min) & (YU <= obstacle_y_max)
+        # obstacle_mask_v = (XV >= obstacle_x_min) & (XV <= obstacle_x_max) & (YV >= obstacle_y_min) & (YV <= obstacle_y_max)
+        # obstacle_mask_p = (XP >= obstacle_x_min) & (XP <= obstacle_x_max) & (YP >= obstacle_y_min) & (YP <= obstacle_y_max)
+        # obstacle_mask_c = (XP >= obstacle_x_min) & (XP <= obstacle_x_max) & (YP >= obstacle_y_min) & (YP <= obstacle_y_max)
         break
     # print(f'c {n}: {c}')
 
@@ -485,61 +533,66 @@ for n in range(nt):
     u[obstacle_mask_u] = 0
     v[obstacle_mask_v] = 0
     
-    # if n % 1 == 0:
-        # plot_scalar(u_n,v_n)
+    """particles"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+    if n > nt // 2:
+        # Keep track of active particles
+        active_particles = []
+    
+        for k in range(num_particles):
+            particle_x, particle_y = particles[k]
+    
+            # Check if the particle touches the top or right boundary
+            if particle_x >= Lx or particle_y >= Ly:
+                continue  # Ignore this particle (remove it from the active list)
+            
+            # Ensure particles remain within the domain for interpolation
+            i = min(max(int(particle_x / dx), 0), len(x_u) - 2)
+            j = min(max(int(particle_y / dy), 0), len(y_u) - 2)
+    
+            # Prevent index out of bounds for j+1 and i+1
+            j_next = min(j + 1, len(y_u) - 1)
+            i_next = min(i + 1, len(x_u) - 1)
+    
+            # Interpolate u velocity
+            u_interp = (u[j, i] * (1 - (particle_x % dx) / dx) * (1 - (particle_y % dy) / dy) +
+                        u[j, i_next] * ((particle_x % dx) / dx) * (1 - (particle_y % dy) / dy) +
+                        u[j_next, i] * (1 - (particle_x % dx) / dx) * ((particle_y % dy) / dy) +
+                        u[j_next, i_next] * ((particle_x % dx) / dx) * ((particle_y % dy) / dy))
+    
+            # Interpolate v velocity
+            v_interp = (v[j, i] * (1 - (particle_x % dx) / dx) * (1 - (particle_y % dy) / dy) +
+                        v[j, i_next] * ((particle_x % dx) / dx) * (1 - (particle_y % dy) / dy) +
+                        v[j_next, i] * (1 - (particle_x % dx) / dx) * ((particle_y % dy) / dy) +
+                        v[j_next, i_next] * ((particle_x % dx) / dx) * ((particle_y % dy) / dy))
+    
+            # Update particle position
+            particle_x += u_interp * dt
+            particle_y += v_interp * dt
+    
+            # Check again after update
+            if particle_x >= Lx or particle_y >= Ly:
+                continue  # Ignore this particle
+            
+            # Store updated position back in particles
+            particles[k] = [particle_x, particle_y]
+            active_particles.append([particle_x, particle_y])  # Track active particles
+    
+        # Update the particles array with only active particles
+        particles = np.array(active_particles)
+        num_particles = len(particles)  # Update the particle count
+    
+        # Extract x and y positions of all active particles
+        if len(particles) > 0:
+            particle_x_positions = particles[:, 0]
+            particle_y_positions = particles[:, 1]
+            if n % 5 == 0:
+                plot_particles(particle_x_positions, particle_y_positions)
+    
+    else:
+        if n % 5 == 0:
+            plot_velocity(u_n,v_n)
         # plot_scalar(c)
-    
-    for k in range(num_particles):
-        particle_x, particle_y = particles[k]
-    
-        # ensures particles remain within domain
-        i = min(max(int(particle_x / dx), 0), len(x_u) - 2) 
-        j = min(max(int(particle_y / dy), 0), len(y_u) - 2) 
-    
-        # interp for u velocity
-        u_interp = (u[j,i] * (1 - (particle_x % dx) / dx) * (1 - (particle_y % dy) / dy) +
-                    u[j,i+1] * ((particle_x % dx) / dx) * (1 - (particle_y % dy) / dy) +
-                    u[j+1,i] * (1 - (particle_x % dx) / dx) * ((particle_y % dy) / dy) +
-                    u[j+1,i+1] * ((particle_x % dx) / dx) * ((particle_y % dy) / dy))
-    
-        # interp for v velocity
-        v_interp = (v[j,i] * (1 - (particle_x % dx) / dx) * (1 - (particle_y % dy) / dy) +
-                    v[j,i+1] * ((particle_x % dx) / dx) * (1 - (particle_y % dy) / dy) +
-                    v[j+1,i] * (1 - (particle_x % dx) / dx) * ((particle_y % dy) / dy) +
-                    v[j+1,i+1] * ((particle_x % dx) / dx) * ((particle_y % dy) / dy))
-    
-        # Update particle position
-        particle_x += u_interp * dt
-        particle_y += v_interp * dt
-    
-        # Reflect particle if it hits the boundary
-        particle_x = max(0, min(Lx, particle_x))
-        particle_y = max(0, min(Ly, particle_y))
-    
-        # Store updated position
-        particles[k] = [particle_x, particle_y]
-
-        # Extract x and y positions of all particles
-    particle_x_positions = particles[:, 0]
-    particle_y_positions = particles[:, 1]
-    
-    # Plot particle positions
-    plt.figure(figsize=(8, 6))
-    plt.scatter(particle_x_positions, particle_y_positions, color='red', label='Particles')  # Adjust y
-    plt.xlim(0, Lx)
-    plt.ylim(0, Ly)
-    plt.xlabel('x [m]')
-    plt.ylabel('y [m]')
-    plt.title('Particle Trajectories')
-    plt.gca().set_aspect('equal', adjustable='box')
-    plt.legend()
-    # plt.grid(True, which='both', linestyle='--', color='gray', linewidth=0.5)
-    for xc in x:
-        plt.axvline(x=xc, color='black', linestyle='--', linewidth=0.5)
-    for yc in y:
-        plt.axhline(y=yc, color='black', linestyle='--', linewidth=0.5)
-    plt.show()
-
+    # plot_scalar(c)
 
 
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
