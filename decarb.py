@@ -304,6 +304,20 @@ particles[:, 0] = 0  # x-coordinate is fixed
 particles[:, 1] = np.linspace(1, Ly-1, num_particles)
 
 
+### Define obstacle region in the middle of the domain ###
+obstacle_x_min = Lx/3
+obstacle_x_max = 2*Lx/3
+obstacle_y_min = Ly/3
+obstacle_y_max = 2*Ly/3
+
+obstacle_mask_u = (XU >= obstacle_x_min) & (XU <= obstacle_x_max) & (YU >= obstacle_y_min) & (YU <= obstacle_y_max)
+obstacle_mask_v = (XV >= obstacle_x_min) & (XV <= obstacle_x_max) & (YV >= obstacle_y_min) & (YV <= obstacle_y_max)
+obstacle_mask_p = (XP >= obstacle_x_min) & (XP <= obstacle_x_max) & (YP >= obstacle_y_min) & (YP <= obstacle_y_max)
+
+# Ensure initial obstacle velocities are zero
+u[obstacle_mask_u] = 0
+v[obstacle_mask_v] = 0
+
 for n in range(nt):
         
     if n == 30:
@@ -399,13 +413,15 @@ for n in range(nt):
         
     tolerance = 1e-4  # Convergence tolerance
     max_iterations = 100000  # Maximum number of iterations to prevent infinite looping
-
+    omega = 0.7  # relaxation factor
     for it in range(max_iterations):  # Maximum number of Poisson iterations per time step
         pn = p.copy()
-        p[1:-1,1:-1] = (((pn[1:-1,2:] + pn[1:-1,0:-2]) * dy**2 +
-                         (pn[2:,1:-1] + pn[0:-2,1:-1]) * dx**2) /
-                        (2 * (dx**2 + dy**2)) -
-                        dx**2 * dy**2 / (2 * (dx**2 + dy**2)) * b[1:-1,1:-1])
+        p[1:-1,1:-1] = (1-omega)*pn[1:-1,1:-1] + omega * (
+        ((pn[1:-1,2:] + pn[1:-1,:-2])*dy**2 + 
+         (pn[2:,1:-1] + pn[:-2,1:-1])*dx**2) /
+        (2*(dx**2+dy**2)) -
+        dx**2*dy**2/(2*(dx**2+dy**2))*b[1:-1,1:-1]
+    )
 
         # pressure boundary conditions
         p = apply_boundary_conditions(u_frac, v_frac, p, c)[2]
@@ -430,6 +446,9 @@ for n in range(nt):
             v_n[j, i] = v_frac[j, i] - dt * dpdy  # Update v
     
     u_n, v_n, p_n = apply_boundary_conditions(u_n, v_n, p_n, c_n)
+
+    u_n[obstacle_mask_u] = 0
+    v_n[obstacle_mask_v] = 0
     
     """scalar transport"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
     for j in range(1, len(y_v) - 1):
@@ -462,6 +481,9 @@ for n in range(nt):
     v = v_n.copy()
     p = p_n.copy()
     c = c_n.copy()
+
+    u[obstacle_mask_u] = 0
+    v[obstacle_mask_v] = 0
     
     # if n % 1 == 0:
         # plot_scalar(u_n,v_n)
@@ -526,6 +548,9 @@ for n in range(nt):
 # wind profile
 y_padded = np.linspace(y[0] - dy / 2, y[-1] + dy / 2, len(u[:, 0]))
 # u_z = u_r * (y_padded/z_r)**alpha
+
+y_padded_corrected = np.maximum(y_padded, 1e-6)  # small positive floor
+u[:, 0] = u_r * (y_padded_corrected / z_r)**alpha
 height_bldg = 18 # meters
 
 u[-1,:] = u[-2,:] # just for plotting
