@@ -6,7 +6,7 @@ from matplotlib.patches import Rectangle
 
 """ vvv Number of iterations and wind profile vvv  and other parameters"""
 
-nt = 10000 #timesteps
+nt = 10 #timesteps
 apply_wind_profile = True #apply power-law profile (true) or uniform profile)
 apply_obstacle_mask = True  # Set to False to disable the obstacle mask
 initialize_flow = True
@@ -486,6 +486,8 @@ for n in range(nt):
     tolerance = 1e-3  # Convergence tolerance
     max_iterations = 100000  # Maximum number of iterations to prevent infinite looping
     omega = 0.7  # relaxation factor
+    pressure_convergence = []
+    pressure_iterations = []
     for it in range(max_iterations):  # Maximum number of Poisson iterations per time step
         pn = p.copy()
         p[1:-1,1:-1] = (1-omega)*pn[1:-1,1:-1] + omega * (
@@ -498,11 +500,15 @@ for n in range(nt):
         # pressure boundary conditions
         p = apply_boundary_conditions(u_frac, v_frac, p, c)[2]
         max_diff = np.max(np.abs(p - pn))  # Maximum difference at any node
+        pressure_convergence.append(max_diff)
         if max_diff < tolerance:
             print(f"n: {n}, Pressure convergence, iter: {it} iterations")
+            pressure_iterations.append(it)
             break
     else:
-        print(f"n: {n}, pressure, did not converge")
+        if it == max_iterations - 1:
+            pressure_iterations.append(max_iterations)
+            print(f"n: {n}, pressure, did not converge")
     p_n = p
     
     # Update u-velocity
@@ -756,3 +762,24 @@ cmax = np.max(c_n)
 cmax_loc = np.argmax(c_n)
 rowmax, colmax = np.unravel_index(cmax_loc,c.shape)
 print(f'max_c:{cmax} at x:{colmax} and y:{rowmax}')
+
+plt.figure(figsize=(8, 6))
+plt.plot(range(len(pressure_convergence)), pressure_convergence, label="Pressure Convergence")
+plt.yscale('log')  # Logarithmic scale
+plt.xlabel("Iteration")
+plt.ylabel("Maximum Pressure Difference")
+plt.title("Pressure Convergence")
+plt.grid(True)
+plt.legend()
+plt.savefig("Pressure Convergence Plot")
+plt.show()
+
+plt.figure(figsize=(8, 6))
+plt.plot(range(len(pressure_iterations)), pressure_iterations, label="Pressure Solver Iterations")
+plt.xlabel("Timestep (n)")
+plt.ylabel("Number of Iterations to Converge")
+plt.title("Pressure Solver Convergence per Timestep")
+plt.grid(True)
+plt.legend()
+plt.savefig("Pressure Solver Convergence")
+plt.show()
