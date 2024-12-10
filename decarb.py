@@ -7,28 +7,28 @@ from matplotlib.patches import Rectangle
 """ vvv Number of iterations and wind profile vvv  and other parameters"""
 
 nt = 10000 #timesteps
-apply_wind_profile = False #apply power-law profile (true) or uniform profile)
+apply_wind_profile = True #apply power-law profile (true) or uniform profile)
 apply_obstacle_mask = True  # Set to False to disable the obstacle mask
 initialize_flow = True
 
-u_r = 2      # m/s (reference wind speed)
-z_r = 1        # feet (reference height of measurement)
+u_r = 8.49      # m/s (reference wind speed)
+z_r = 10        # feet (reference height of measurement)
 
 u_vel = u_r    # m/s (uniform wind profile speed)
 v_vel = 0     # m/s (uniform wind profile speed)
 
-Lx = 450   # Length of domain in x-direction (change to 1)
-Ly = 100     # Length of domain in y-direction (change to 1)
+Lx = 400   # Length of domain in x-direction (VARY THIS IF FLOW TOUCHES BOUNDARY)
+Ly = 100     # Length of domain in y-direction (INCREASE THIS IF FLOW TOUCHES BOUNDARY)
 
-dx = 0.5      # TRY TO KEEP CONSTANT at 0.5, only change if divergence
-dy = 0.5      # TRY TO KEEP CONSTANT at 0.5, only change if divergence
+dx = 1      # TRY TO KEEP CONSTANT at 1, only change if divergence
+dy = 1      # TRY TO KEEP CONSTANT at 1, only change if divergence
 
 dt = 0
 
 diffusion_coefficient = 2*10**-5
 
 
-n_switch = 50
+n_switch = np.inf
 
 time = 0
 """ ^^^ Number of iterations and wind profile^^^ """
@@ -527,18 +527,20 @@ for n in range(nt):
 
     
     """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-    vel_tolerance = 1e-7
-    p_tolerance = 1e-6
+    vel_tolerance = 1e-2
+    p_tolerance = 1e-2
     
-    u_max_diff = np.max(np.abs(u_n - u))
-    v_max_diff = np.max(np.abs(v_n - v))
-    p_max_diff = np.max(np.abs(p_n - p_old))
+    u_max_diff = np.max(np.abs(u_n[2:-2,2:-2] - u[2:-2,2:-2]))
+    v_max_diff = np.max(np.abs(v_n[2:-2,2:-2] - v[2:-2,2:-2]))
+    p_max_diff = np.max(np.abs(p_n[2:-2,2:-2] - p_old[2:-2,2:-2]))
+    
     
     max_vel_diff = max(u_max_diff, v_max_diff)  # combined velocity criterion
-    
-    # if max_vel_diff < vel_tolerance and p_max_diff < p_tolerance and n!= 0:
-    #     break
+    print(f"n: {n}, u_max_diff: {u_max_diff:.5f}, v_max_diff: {v_max_diff:.5f}, p_max_diff: {p_max_diff:.5f}, max_vel_diff: {max_vel_diff:.5f}, n_switch: {n_switch}")
 
+    if max_vel_diff < vel_tolerance and p_max_diff < p_tolerance and n!= 0:
+        n_switch = n+1
+    
     u = u_n.copy()
     v = v_n.copy()
     p = p_n.copy()
@@ -602,8 +604,6 @@ for n in range(nt):
             mass_fraction = int_tracer / int_flow
         else:
             mass_fraction = 0.0
-        # Plot scalar field before zeroing out the inlet
-        plot_scalar(c, mass_fraction)
         c_n[inlet_mask_p] = 0.0
         c = c_n.copy()
 
@@ -652,13 +652,14 @@ for n in range(nt):
     vol_flux = (int_flow+int_tracer)/rho
     print(f'vol_flux= {vol_flux}')
     # # else:
-    if n % 50 == 0 and n < n_switch:
-        plot_u_velocity(u_n,v_n)
-    else:
-        if n % 20 == 0:
-            # plot_pressure(p_n)
-            plot_scalar(c,mass_fraction)
-            # plot_mass_frac(mass_fraction)
+    if n % 5 == 0 and n < n_switch:
+        plot_velocity(u_n,v_n)
+        # plot_pressure(p)
+
+    elif n % 20 and n > n_switch:
+        # plot_pressure(p_n)
+        plot_scalar(c,mass_fraction)
+        # plot_mass_frac(mass_fraction)
         if n % 200 == 0:
             plot_u_velocity(u,v)
             # plot_u_velocity(u,v)
