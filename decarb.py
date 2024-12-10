@@ -1,39 +1,58 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import TwoSlopeNorm
+from matplotlib.patches import Rectangle
+
 
 """ vvv Number of iterations and wind profile vvv  and other parameters"""
 
 nt = 10000 #timesteps
-apply_wind_profile = False #apply power-law profile (true) or uniform profile)
+apply_wind_profile = True #apply power-law profile (true) or uniform profile)
 apply_obstacle_mask = True  # Set to False to disable the obstacle mask
 initialize_flow = True
 
-u_r = 6      # m/s (reference wind speed)
-z_r = 6        # feet (reference height of measurement)
+u_r = 8.49      # m/s (reference wind speed)
+z_r = 10        # feet (reference height of measurement)
 
 u_vel = u_r    # m/s (uniform wind profile speed)
 v_vel = 0     # m/s (uniform wind profile speed)
 
-u_inlet = -12
-u_outlet = -12
+Lx = 400   # Length of domain in x-direction (VARY THIS IF FLOW TOUCHES BOUNDARY)
+Ly = 100     # Length of domain in y-direction (INCREASE THIS IF FLOW TOUCHES BOUNDARY)
 
-
-Lx = 200   # Length of domain in x-direction (change to 1)
-Ly = 75     # Length of domain in y-direction (change to 1)
-
-dx = 2.5
-dy = 2.5
+dx = 1      # TRY TO KEEP CONSTANT at 1, only change if divergence
+dy = 1      # TRY TO KEEP CONSTANT at 1, only change if divergence
 
 dt = 0
 
 diffusion_coefficient = 2*10**-5
 
 
-n_switch = 1
+n_switch = np.inf
 
 time = 0
 """ ^^^ Number of iterations and wind profile^^^ """
+
+""" Obstacle definition """
+### Define obstacle region in the middle of the domain ###
+
+obstacle_x_min = Lx/4
+obstacle_x_max = obstacle_x_min+10
+obstacle_y_min = 0
+obstacle_y_max = 20     # KEEP TOTAL AREA = 200 m2
+
+mult = 4/dx # multiplier to subtract the appropriate amount of cells from inlet wall face to define actual inlet
+
+vol_flow = 180  # m3/s  ###KEEP CONSTANT AT 180 FOR EXPERIMENTS
+u_inlet = -vol_flow/(obstacle_y_max - mult*dy)
+u_outlet = u_inlet
+
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+def add_obstacle_outline(ax, obstacle_x_min, obstacle_x_max, obstacle_y_min, obstacle_y_max):
+    width = obstacle_x_max - obstacle_x_min
+    height = obstacle_y_max - obstacle_y_min
+    obstacle = Rectangle((obstacle_x_min, obstacle_y_min),  width, height, linewidth=1, edgecolor='black', facecolor='black', linestyle='-')
+    ax.add_patch(obstacle)
 
 def plot_particles(particle_x_positions,particle_y_positions):
     plt.figure(figsize=(8, 6))
@@ -117,6 +136,39 @@ def apply_boundary_conditions(u, v, p, c):
 
     return u, v, p
     
+# def plot_velocity(u,v):
+#     u_centered = 0.5 * (u[:-1, :-1] + u[1:, :-1])   # Average to cell centers in x-direction
+#     v_centered = 0.5 * (v[:, :-1] + v[:, 1:])       # Average to cell centers in y-direction
+#     velocity_magnitude = np.sqrt(u_centered**2 + v_centered**2)
+    
+#     # # New meshgrid for plotting
+#     # x_plot = np.arange(u_centered.shape[1])
+#     # y_plot = np.arange(u_centered.shape[0])
+#     # X_plot, Y_plot = np.meshgrid(x_plot, y_plot)
+    
+#     x_plot = x[:u_centered.shape[1]]
+#     y_plot = y[:u_centered.shape[0]]
+#     X_plot, Y_plot = np.meshgrid(x_plot, y_plot)
+
+#     # velocity contour
+#     # plt.figure(figsize=(8, 6))
+#     fig, ax = plt.subplots(figsize=(8, 6))
+#     # plt.figure()
+#     contour = ax.contourf(X_plot, Y_plot, velocity_magnitude, levels=20, cmap='viridis')  # Contour plot
+#     fig.colorbar(contour, ax=ax, label='Velocity Magnitude [m/s]')
+#     ax.set_xlabel('x')
+#     ax.set_ylabel('y')
+#     ax.set_title(f'Velocity Contour, n: {n}, t = {time:0.02f}[s]')
+#     ax.axis('equal')
+#     for xc in x:
+#         ax.axvline(x=xc, color='white', linestyle='--', linewidth=0.5)
+#     for yc in y:
+#         ax.axhline(y=yc, color='white', linestyle='--', linewidth=0.5)
+        
+#     add_obstacle_outline(ax, obstacle_x_min, obstacle_x_max, obstacle_y_min, obstacle_y_max)
+
+#     plt.show()
+    
 def plot_velocity(u,v):
     u_centered = 0.5 * (u[:-1, :-1] + u[1:, :-1])   # Average to cell centers in x-direction
     v_centered = 0.5 * (v[:, :-1] + v[:, 1:])       # Average to cell centers in y-direction
@@ -159,7 +211,7 @@ def plot_u_velocity(u,v):
     # u-velocity contour
     plt.figure(figsize=(8, 6))
     plt.contourf(X_plot, Y_plot, u_centered, levels=10, cmap='coolwarm')  # Contour plot
-    plt.colorbar(label='Velocity Magnitude [m/s]')
+    plt.colorbar(label='u-Velocity Magnitude [m/s]')
     plt.xlabel('x')
     plt.ylabel('y')
     plt.title(f'u-Velocity Contour, n: {n}')
@@ -205,19 +257,21 @@ def plot_pressure(p):
         plt.axhline(y=yc, color='white', linestyle='--', linewidth=0.5)
     plt.show()
     
-def plot_scalar(c):
+def plot_scalar(c, mass_fraction):
     
-    # vmin = 0
-    # vmax = 0.5
-    plt.figure(figsize=(8, 6))
-    plt.contourf(XP, YP, c, levels=20, cmap='coolwarm') # Contour plot
-    # plt.contourf(XP, YP, c, levels=np.linspace(vmin, vmax, 21), cmap='coolwarm')  # Contour plot
-    plt.colorbar(label='Scalar concentration [c]')
-    plt.xlabel('x')
-    plt.ylabel('y')
-    plt.title(f'Scalar Concentration Contour, n: {n}, t = {time:0.02f}[s]')
-    plt.axis('equal')
-    
+    vmin = 0
+    vmax = 1
+    fig, ax = plt.subplots(figsize=(10, 8))
+    c_clip = np.clip(c,0,1)
+    # plt.contourf(XP, YP, c, levels=20, cmap='turbo') # Contour plot
+    contour = ax.contourf(XP, YP, c_clip, levels=np.linspace(vmin, vmax, 21), cmap='turbo')  # Contour plot
+    fig.colorbar(contour, ax=ax, label='Mass Frac')
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_title(f'Mass fraction of carbon-depleted air, n: {n}, t = {time:0.02f}[s], depleted_intake_fraction = {mass_fraction*100}%')
+    ax.axis('equal')
+    add_obstacle_outline(ax, obstacle_x_min, obstacle_x_max, obstacle_y_min, obstacle_y_max)
+
     for xc in x:
         plt.axvline(x=xc, color='white', linestyle='--', linewidth=0.5)
     for yc in y:
@@ -288,10 +342,10 @@ print('u_shape: ',u.shape)
 print('v_shape: ',v.shape)
 print('P_shape: ',p.shape)
 
-plot_velocity(u,v)
+# plot_velocity(u,v)
 # plot_u_velocity(u,v)
 # plot_v_velocity(u,v)
-plot_pressure(p)
+# plot_pressure(p)
 
 
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -325,12 +379,6 @@ particles[:, 0] = 0  # x-coordinate is fixed
 
 # particle y-coords
 particles[:, 1] = np.linspace(2, Ly-1, num_particles)
-
-### Define obstacle region in the middle of the domain ###
-obstacle_x_min = Lx/3
-obstacle_x_max = obstacle_x_min+10
-obstacle_y_min = 0
-obstacle_y_max = 20
 
 
 if apply_obstacle_mask:
@@ -479,18 +527,20 @@ for n in range(nt):
 
     
     """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-    vel_tolerance = 1e-7
-    p_tolerance = 1e-6
+    vel_tolerance = 1e-2
+    p_tolerance = 1e-2
     
-    u_max_diff = np.max(np.abs(u_n - u))
-    v_max_diff = np.max(np.abs(v_n - v))
-    p_max_diff = np.max(np.abs(p_n - p_old))
+    u_max_diff = np.max(np.abs(u_n[2:-2,2:-2] - u[2:-2,2:-2]))
+    v_max_diff = np.max(np.abs(v_n[2:-2,2:-2] - v[2:-2,2:-2]))
+    p_max_diff = np.max(np.abs(p_n[2:-2,2:-2] - p_old[2:-2,2:-2]))
+    
     
     max_vel_diff = max(u_max_diff, v_max_diff)  # combined velocity criterion
-    
-    # if max_vel_diff < vel_tolerance and p_max_diff < p_tolerance and n!= 0:
-    #     break
+    print(f"n: {n}, u_max_diff: {u_max_diff:.5f}, v_max_diff: {v_max_diff:.5f}, p_max_diff: {p_max_diff:.5f}, max_vel_diff: {max_vel_diff:.5f}, n_switch: {n_switch}")
 
+    if max_vel_diff < vel_tolerance and p_max_diff < p_tolerance and n!= 0:
+        n_switch = n+1
+    
     u = u_n.copy()
     v = v_n.copy()
     p = p_n.copy()
@@ -500,22 +550,23 @@ for n in range(nt):
     if apply_obstacle_mask:
         # inlet on right side (downwind)
         inlet_mask_u = ((XU >= obstacle_x_max - dx) & (XU <= obstacle_x_max)
-                        & (YU >= obstacle_y_min) & (YU <= obstacle_y_max))
+                        & (YU >= obstacle_y_min+mult/2*dy) & (YU <= obstacle_y_max-mult/2*dy))
         # outlet on left side (upwind)
         outlet_mask_u = ((XU >= obstacle_x_min) & (XU <= obstacle_x_min + dx) 
-                         & (YU >= obstacle_y_min) & (YU <= obstacle_y_max))
+                         & (YU >= obstacle_y_min+mult/2*dy) & (YU <= obstacle_y_max-mult/2*dy))
         
         inlet_mask_v = ((XV >= obstacle_x_max - dx) & (XV <= obstacle_x_max) 
-                        & (YV >= obstacle_y_min) & (YV <= obstacle_y_max))
+                        & (YV >= obstacle_y_min+mult/2*dy) & (YV <= obstacle_y_max-mult/2*dy))
         
         outlet_mask_v = ((XV >= obstacle_x_min) & (XV <= obstacle_x_min + dx)
-                         & (YV >= obstacle_y_min) & (YV <= obstacle_y_max))
+                         & (YV >= obstacle_y_min+mult/2*dy) & (YV <= obstacle_y_max-mult/2*dy))
         
         outlet_mask_p = ((XP >= obstacle_x_min) & (XP <= obstacle_x_min + dx) 
-                         & (YP >= obstacle_y_min) & (YP <= obstacle_y_max))
+                         & (YP >= obstacle_y_min+mult/2*dy) & (YP <= obstacle_y_max-mult/2*dy))
         
-        # inlet_mask_p = ((XP >= obstacle_x_max - 4*dx) & (XP <= obstacle_x_max - 3*dx)
-        #                 & (YP >= obstacle_y_min) & (YP <= obstacle_y_max))
+        inlet_mask_p = ((XP >= obstacle_x_max+dx) & (XP < obstacle_x_max+2*dx)
+                        & (YP >= obstacle_y_min+mult/2*dy) & (YP < obstacle_y_max-mult/2*dy))
+
     
         # Zero out velocities in the obstacle region
         u_n[obstacle_mask_u] = 0
@@ -535,6 +586,28 @@ for n in range(nt):
             c_n[outlet_mask_p] = 1.0
         
         c = c_n.copy()
+    
+        inlet_cells = np.where(inlet_mask_p)  # This gives arrays of j, i indices where mask is True
+        int_tracer = 0.0
+        int_flow = 0.0
+        for j, i in zip(inlet_cells[0], inlet_cells[1]):
+            cell_c = c[j, i]  # assuming the domain is to the left of the inlet face
+            cell_u = u[j, i+1]
+        
+            flux_tracer = rho * cell_c * cell_u * dy
+            flux_air = rho * cell_u * dy
+        
+            int_tracer += flux_tracer
+            int_flow += flux_air
+        
+        if int_flow != 0:
+            mass_fraction = int_tracer / int_flow
+        else:
+            mass_fraction = 0.0
+        c_n[inlet_mask_p] = 0.0
+        c = c_n.copy()
+
+        print(f"Mass fraction at building inlet: {mass_fraction}")
         
     for j in range(1, len(y_p)-2):
         for i in range(1, len(x_p)-1):
@@ -575,74 +648,31 @@ for n in range(nt):
             d2cdy2 = (c_old[j+1,i] - 2*c_old[j,i] + c_old[j-1,i]) / dy**2
     
             c_n[j,i] = (c_old[j,i] - dt*(ducdx + dvcdy) + dt*diffusion_coefficient*(d2cdx2 + d2cdy2))
-        
     
-    """particles"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-    if n > nt // 4:
-        # Keep track of active particles
-        active_particles = []
-    
-        for k in range(num_particles):
-            particle_x, particle_y = particles[k]
-    
-            # Check if the particle touches the top or right boundary
-            if particle_x >= Lx or particle_y >= Ly:
-                continue  # Ignore this particle (remove it from the active list)
-            
-            # Ensure particles remain within the domain for interpolation
-            i = min(max(int(particle_x / dx), 0), len(x_u) - 2)
-            j = min(max(int(particle_y / dy), 0), len(y_u) - 2)
-    
-            # Prevent index out of bounds for j+1 and i+1
-            j_next = min(j + 1, len(y_u) - 1)
-            i_next = min(i + 1, len(x_u) - 1)
-    
-            # Interpolate u velocity
-            u_interp = (u[j, i] * (1 - (particle_x % dx) / dx) * (1 - (particle_y % dy) / dy) +
-                        u[j, i_next] * ((particle_x % dx) / dx) * (1 - (particle_y % dy) / dy) +
-                        u[j_next, i] * (1 - (particle_x % dx) / dx) * ((particle_y % dy) / dy) +
-                        u[j_next, i_next] * ((particle_x % dx) / dx) * ((particle_y % dy) / dy))
-    
-            # Interpolate v velocity
-            v_interp = (v[j, i] * (1 - (particle_x % dx) / dx) * (1 - (particle_y % dy) / dy) +
-                        v[j, i_next] * ((particle_x % dx) / dx) * (1 - (particle_y % dy) / dy) +
-                        v[j_next, i] * (1 - (particle_x % dx) / dx) * ((particle_y % dy) / dy) +
-                        v[j_next, i_next] * ((particle_x % dx) / dx) * ((particle_y % dy) / dy))
-    
-            # Update particle position
-            particle_x += u_interp * dt
-            particle_y += v_interp * dt
-    
-            # Check again after update
-            if particle_x >= Lx or particle_y >= Ly:
-                continue  # Ignore this particle
-            
-            # Store updated position back in particles
-            particles[k] = [particle_x, particle_y]
-            active_particles.append([particle_x, particle_y])  # Track active particles
-    
-        # Update the particles array with only active particles
-        particles = np.array(active_particles)
-        num_particles = len(particles)  # Update the particle count
-    
-        # Extract x and y positions of all active particles
-        if len(particles) > 0:
-            particle_x_positions = particles[:, 0]
-            particle_y_positions = particles[:, 1]
-            # if n % 5 == 0:
-            #     plot_particles(particle_x_positions, particle_y_positions)
-    
+    vol_flux = (int_flow+int_tracer)/rho
+    print(f'vol_flux= {vol_flux}')
     # # else:
-    if n % 1 == 0 and n < n_switch:
-        plot_u_velocity(u_n,v_n)
-    else:
+    if n % 5 == 0 and n < n_switch:
+        plot_velocity(u_n,v_n)
+        # plot_pressure(p)
+
+    elif n % 20 and n > n_switch:
         # plot_pressure(p_n)
-        plot_scalar(c)
+        plot_scalar(c,mass_fraction)
+        # plot_mass_frac(mass_fraction)
+        if n % 200 == 0:
+            plot_u_velocity(u,v)
+            # plot_u_velocity(u,v)
+            # plot_v_velocity(u,v)
+            plot_pressure(p)
+        
     # plot_scalar(c)
     
     time += dt
 
-
+    selected_indices = np.where(inlet_mask_p)
+    num_cells_selected = len(selected_indices[0])
+    print(f"Number of inlet cells selected: {num_cells_selected}")
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 """Plotting"""
 
@@ -652,7 +682,7 @@ y_padded = np.linspace(y[0] - dy / 2, y[-1] + dy / 2, len(u[:, 0]))
 
 y_padded_corrected = np.maximum(y_padded, 1e-6)  # small positive floor
 u[:, 0] = u_r * (y_padded_corrected / z_r)**alpha
-height_bldg = 18 # meters
+height_bldg = 20 # meters
 
 u[-1,:] = u[-2,:] # just for plotting
 y_fine = np.linspace(y[0], y[-1], 1000)  
