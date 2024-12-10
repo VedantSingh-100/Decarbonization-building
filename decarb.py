@@ -6,7 +6,7 @@ from matplotlib.patches import Rectangle
 
 """ vvv Number of iterations and wind profile vvv  and other parameters"""
 
-nt = 10 #timesteps
+nt = 50 #timesteps
 apply_wind_profile = True #apply power-law profile (true) or uniform profile)
 apply_obstacle_mask = True  # Set to False to disable the obstacle mask
 initialize_flow = True
@@ -17,18 +17,17 @@ z_r = 10        # feet (reference height of measurement)
 u_vel = u_r    # m/s (uniform wind profile speed)
 v_vel = 0     # m/s (uniform wind profile speed)
 
-Lx = 400   # Length of domain in x-direction (VARY THIS IF FLOW TOUCHES BOUNDARY)
-Ly = 100     # Length of domain in y-direction (INCREASE THIS IF FLOW TOUCHES BOUNDARY)
+Lx = 500   # Length of domain in x-direction (VARY THIS IF FLOW TOUCHES BOUNDARY)
+Ly = 130     # Length of domain in y-direction (INCREASE THIS IF FLOW TOUCHES BOUNDARY)
 
-dx = 1      # TRY TO KEEP CONSTANT at 1, only change if divergence
-dy = 1      # TRY TO KEEP CONSTANT at 1, only change if divergence
+dx = 5      # TRY TO KEEP CONSTANT at 1, only change if divergence
+dy = 5      # TRY TO KEEP CONSTANT at 1, only change if divergence
 
 dt = 0
 
 diffusion_coefficient = 2*10**-5
 
-
-n_switch = np.inf
+n_switch = 10
 
 time = 0
 """ ^^^ Number of iterations and wind profile^^^ """
@@ -41,7 +40,7 @@ obstacle_x_max = obstacle_x_min+10
 obstacle_y_min = 0
 obstacle_y_max = 20     # KEEP TOTAL AREA = 200 m2
 
-mult = 4/dx # multiplier to subtract the appropriate amount of cells from inlet wall face to define actual inlet
+mult = 2/dx # multiplier to subtract the appropriate amount of cells from inlet wall face to define actual inlet
 
 vol_flow = 180  # m3/s  ###KEEP CONSTANT AT 180 FOR EXPERIMENTS
 u_inlet = -vol_flow/(obstacle_y_max - mult*dy)
@@ -86,14 +85,14 @@ def calculate_dt(u,v):
 
     # Determine which dt is chosen and print an explanation
     if dt_min == dt:
-        dt_type = "convective dt (Courant number limit)"
+        dt_type = "convective dt"
     elif dt_min == dt_diff:
-        dt_type = "viscous/diffusive dt (based on dynamic viscosity)"
+        dt_type = "viscous/diffusive dt"
     elif dt_min == dt_diff_sc:
-        dt_type = "scalar diffusion dt (based on diffusion coefficient)"
+        dt_type = "scalar diffusion dt"
     else:
         dt_type = "unknown dt type"
-    print(f'n: {n}, chosen dt: {dt_min} ({dt_type})')
+    print(f'n: {n}, dt: {dt_min} ({dt_type})')
     return courrant_num_adjuster*min(dt,dt_diff,dt_diff_sc)
 
 def calculate_courrant(u,v,dt):
@@ -135,52 +134,15 @@ def apply_boundary_conditions(u, v, p, c):
     v[0,:] = 0          # bottom wall (ground), v = 0
 
     return u, v, p
-    
-# def plot_velocity(u,v):
-#     u_centered = 0.5 * (u[:-1, :-1] + u[1:, :-1])   # Average to cell centers in x-direction
-#     v_centered = 0.5 * (v[:, :-1] + v[:, 1:])       # Average to cell centers in y-direction
-#     velocity_magnitude = np.sqrt(u_centered**2 + v_centered**2)
-    
-#     # # New meshgrid for plotting
-#     # x_plot = np.arange(u_centered.shape[1])
-#     # y_plot = np.arange(u_centered.shape[0])
-#     # X_plot, Y_plot = np.meshgrid(x_plot, y_plot)
-    
-#     x_plot = x[:u_centered.shape[1]]
-#     y_plot = y[:u_centered.shape[0]]
-#     X_plot, Y_plot = np.meshgrid(x_plot, y_plot)
 
-#     # velocity contour
-#     # plt.figure(figsize=(8, 6))
-#     fig, ax = plt.subplots(figsize=(8, 6))
-#     # plt.figure()
-#     contour = ax.contourf(X_plot, Y_plot, velocity_magnitude, levels=20, cmap='viridis')  # Contour plot
-#     fig.colorbar(contour, ax=ax, label='Velocity Magnitude [m/s]')
-#     ax.set_xlabel('x')
-#     ax.set_ylabel('y')
-#     ax.set_title(f'Velocity Contour, n: {n}, t = {time:0.02f}[s]')
-#     ax.axis('equal')
-#     for xc in x:
-#         ax.axvline(x=xc, color='white', linestyle='--', linewidth=0.5)
-#     for yc in y:
-#         ax.axhline(y=yc, color='white', linestyle='--', linewidth=0.5)
-        
-#     add_obstacle_outline(ax, obstacle_x_min, obstacle_x_max, obstacle_y_min, obstacle_y_max)
 
-#     plt.show()
-    
-# NEW CODE TO COPY 1:08 AM #############################################################
-
-def add_quiver(ax, X, Y, u, v, scale=20, skip=3, color='grey', width=0.001):
+def add_quiver(ax, X, Y, u, v, scale=500, skip=1, color='grey', width=0.001):
     skip_slices = (slice(None, None, skip), slice(None, None, skip))
     ax.quiver(
         X[skip_slices], Y[skip_slices], u[skip_slices], v[skip_slices],
-        color=color, scale=scale, width=width
-    )
+        color=color, scale=scale, width=width)
 
     
-
-
 def plot_velocity(u, v):
     u_centered = 0.5 * (u[:-1, :-1] + u[1:, :-1])   # Average to cell centers in x-direction
     v_centered = 0.5 * (v[:, :-1] + v[:, 1:])       # Average to cell centers in y-direction
@@ -194,25 +156,21 @@ def plot_velocity(u, v):
     contour = ax.contourf(X_plot, Y_plot, velocity_magnitude, levels=np.linspace(0, np.max(velocity_magnitude), 21), cmap='viridis')
     fig.colorbar(contour, ax=ax, label='Velocity Magnitude [m/s]')
 
-    add_quiver(ax, X_plot, Y_plot, u_centered, v_centered, scale=20, width=0.002)
+    add_quiver(ax, X_plot, Y_plot, u_centered, v_centered, width=0.002)
 
     ax.set_xlabel('x')
     ax.set_ylabel('y')
-    ax.set_title(f'Velocity Contour with Vectors, n: {n}, t = {time:0.02f}[s]')
+    ax.set_title(f'Velocity magnitude at t = {time:0.02f}[s]')
 
 
-    ax.set_xlim([0, 500])
-    ax.set_ylim([0, 126])
-    ax.set_aspect('auto') 
+    ax.set_xlim([0, Lx])
+    ax.set_ylim([0, Ly])
+    ax.set_aspect('equal') 
     add_obstacle_outline(ax, obstacle_x_min, obstacle_x_max, obstacle_y_min, obstacle_y_max)
 
     plt.subplots_adjust(left=0.05, right=0.95, top=0.9, bottom=0.1)  
     plt.show()
 
-
-
-
-    
 def plot_u_velocity(u, v):
     u_centered = 0.5 * (u[:-1, :-1] + u[1:, :-1])  
     x_plot = x[:u_centered.shape[1]]
@@ -223,25 +181,20 @@ def plot_u_velocity(u, v):
     contour = ax.contourf(X_plot, Y_plot, u_centered, levels=np.linspace(np.min(u_centered), np.max(u_centered), 21), cmap='coolwarm')
     fig.colorbar(contour, ax=ax, label='u-Velocity Magnitude [m/s]')
 
-    add_quiver(ax, X_plot, Y_plot, u_centered, np.zeros_like(u_centered), scale=20, width=0.002)
+    # add_quiver(ax, X_plot, Y_plot, u_centered, v_centered, width=0.002)
 
     ax.set_xlabel('x')
     ax.set_ylabel('y')
-    ax.set_title(f'u-Velocity Contour with Vectors, n: {n}, t = {time:0.02f}[s]')
+    ax.set_title(f'u-Velocity at t = {time:0.02f}[s]')
 
 
-    ax.set_xlim([0, 500])
-    ax.set_ylim([0, 126])
-    ax.set_aspect('auto')  
+    ax.set_xlim([0, Lx])
+    ax.set_ylim([0, Ly])
+    ax.set_aspect('equal')  
     add_obstacle_outline(ax, obstacle_x_min, obstacle_x_max, obstacle_y_min, obstacle_y_max)
-
+    
     plt.subplots_adjust(left=0.05, right=0.95, top=0.9, bottom=0.1)  
     plt.show()
-
-
-
-
-
 
 
 def plot_v_velocity(u, v):
@@ -254,69 +207,78 @@ def plot_v_velocity(u, v):
     contour = ax.contourf(X_plot, Y_plot, v_centered, levels=np.linspace(np.min(v_centered), np.max(v_centered), 21), cmap='viridis')
     fig.colorbar(contour, ax=ax, label='v-Velocity Magnitude [m/s]')
 
-    add_quiver(ax, X_plot, Y_plot, np.zeros_like(v_centered), v_centered, scale=20, width=0.002)
+    # add_quiver(ax, X_plot, Y_plot, u_centered, v_centered, width=0.002)
 
     ax.set_xlabel('x')
     ax.set_ylabel('y')
-    ax.set_title(f'v-Velocity Contour with Vectors, n: {n}, t = {time:0.02f}[s]')
+    ax.set_title(f'v-Velocity at t = {time:0.02f}[s]')
 
-    ax.set_xlim([0, 500])
-    ax.set_ylim([0, 126])
-    ax.set_aspect('auto') 
+    ax.set_xlim([0, Lx])
+    ax.set_ylim([0, Ly])
+    ax.set_aspect('equal') 
     add_obstacle_outline(ax, obstacle_x_min, obstacle_x_max, obstacle_y_min, obstacle_y_max)
 
     plt.subplots_adjust(left=0.05, right=0.95, top=0.9, bottom=0.1) 
     plt.show()
 
+def plot_pressure(p,):
+    # x_plot = x[:u.shape[1]]
+    # y_plot = y[:u.shape[0]]
+    # X_plot, Y_plot = np.meshgrid(x_plot, y_plot)
+    u_centered = 0.5 * (u[:-1, :-1] + u[1:, :-1])   # Average to cell centers in x-direction
+    v_centered = 0.5 * (v[:, :-1] + v[:, 1:])       # Average to cell centers in y-direction
+    # velocity_magnitude = np.sqrt(u_centered**2 + v_centered**2)
 
-
-def plot_pressure(p, u, v):
-    x_plot = x[:p.shape[1]]
-    y_plot = y[:p.shape[0]]
+    x_plot = x[:u_centered.shape[1]]
+    y_plot = y[:u_centered.shape[0]]
     X_plot, Y_plot = np.meshgrid(x_plot, y_plot)
-
     fig, ax = plt.subplots(figsize=(12, 4)) 
-    contour = ax.contourf(X_plot, Y_plot, p, levels=np.linspace(np.min(p), np.max(p), 21), cmap='coolwarm')
+    contour = ax.contourf(XP, YP, p, levels=np.linspace(np.min(p), np.max(p), 21), cmap='coolwarm')
     fig.colorbar(contour, ax=ax, label='Pressure [Pa]')
 
-    add_quiver(ax, X_plot, Y_plot, u, v, scale=20, width=0.002)
+    add_quiver(ax, X_plot, Y_plot, u_centered, v_centered, width=0.002)
 
     ax.set_xlabel('x')
     ax.set_ylabel('y')
-    ax.set_title(f'Pressure Contour with Vectors, n: {n}, t = {time:0.02f}[s]')
+    ax.set_title(f'Pressure at t = {time:0.02f}[s]')
 
-    ax.set_xlim([0, 500])
-    ax.set_ylim([0, 126])
-    ax.set_aspect('auto')  
+    ax.set_xlim([0, Lx])
+    ax.set_ylim([0, Ly])
+    ax.set_aspect('equal')  
     add_obstacle_outline(ax, obstacle_x_min, obstacle_x_max, obstacle_y_min, obstacle_y_max)
 
     plt.subplots_adjust(left=0.05, right=0.95, top=0.9, bottom=0.1) 
     plt.show()
-
 
 def plot_scalar(c, mass_fraction):
     c_clip = np.clip(c, 0, 1)
-    x_plot = x[:c.shape[1]]
-    y_plot = y[:c.shape[0]]
+    # x_plot = x[:u.shape[1]]
+    # y_plot = y[:u.shape[0]]
+    # X_plot, Y_plot = np.meshgrid(x_plot, y_plot)
+    u_centered = 0.5 * (u[:-1, :-1] + u[1:, :-1])   # Average to cell centers in x-direction
+    v_centered = 0.5 * (v[:, :-1] + v[:, 1:])       # Average to cell centers in y-direction
+
+    x_plot = x[:u_centered.shape[1]]
+    y_plot = y[:u_centered.shape[0]]
     X_plot, Y_plot = np.meshgrid(x_plot, y_plot)
 
     fig, ax = plt.subplots(figsize=(12, 4)) 
-    contour = ax.contourf(X_plot, Y_plot, c_clip, levels=np.linspace(0, 1, 21), cmap='turbo')
+    contour = ax.contourf(XP, YP, c_clip, levels=np.linspace(0, 1, 21), cmap='turbo')
     fig.colorbar(contour, ax=ax, label='Mass Fraction')
 
     ax.set_xlabel('x')
     ax.set_ylabel('y')
-    ax.set_title(f'Mass Fraction, n: {n}, t = {time:0.02f}[s], depleted_intake_fraction = {mass_fraction * 100:.1f}%')
+    ax.set_title(f'Mass Fraction at t = {time:0.02f}[s], Re-entrainment = {mass_fraction * 100:.2f}%')
 
-    ax.set_xlim([0, 500])
-    ax.set_ylim([0, 126])
-    ax.set_aspect('auto')  
+    ax.set_xlim([0, Lx])
+    ax.set_ylim([0, Ly])
+    ax.set_aspect('equal')  
     add_obstacle_outline(ax, obstacle_x_min, obstacle_x_max, obstacle_y_min, obstacle_y_max)
+    add_quiver(ax, X_plot, Y_plot, u_centered, v_centered, width=0.002)
 
     plt.subplots_adjust(left=0.05, right=0.95, top=0.9, bottom=0.1) 
     plt.show()
-
-
+    
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
 """Grid and field initialization"""""
@@ -380,11 +342,6 @@ print('u_shape: ',u.shape)
 print('v_shape: ',v.shape)
 print('P_shape: ',p.shape)
 
-# plot_velocity(u,v)
-# plot_u_velocity(u,v)
-# plot_v_velocity(u,v)
-# plot_pressure(p)
-
 
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 """Internal Nodes"""
@@ -444,6 +401,13 @@ dt = min(dx, dy) / max_velocity * 0.9  # CFL condition with safety factor
 # dt = min(dtx,dty)
 startdt = dt
 time = 0
+
+mass_fraction_last = 0
+mass_fraction_change = np.inf
+
+pressure_iterations = []
+
+
 for n in range(nt):
     
     c_old = c.copy()
@@ -525,7 +489,6 @@ for n in range(nt):
     max_iterations = 100000  # Maximum number of iterations to prevent infinite looping
     omega = 0.7  # relaxation factor
     pressure_convergence = []
-    pressure_iterations = []
     for it in range(max_iterations):  # Maximum number of Poisson iterations per time step
         pn = p.copy()
         p[1:-1,1:-1] = (1-omega)*pn[1:-1,1:-1] + omega * (
@@ -539,14 +502,14 @@ for n in range(nt):
         p = apply_boundary_conditions(u_frac, v_frac, p, c)[2]
         max_diff = np.max(np.abs(p - pn))  # Maximum difference at any node
         pressure_convergence.append(max_diff)
+
         if max_diff < tolerance:
             print(f"n: {n}, Pressure convergence, iter: {it} iterations")
             pressure_iterations.append(it)
             break
     else:
-        if it == max_iterations - 1:
-            pressure_iterations.append(max_iterations)
-            print(f"n: {n}, pressure, did not converge")
+        pressure_iterations.append(max_iterations)
+        print(f"n: {n}, pressure, did not converge")
     p_n = p
     
     # Update u-velocity
@@ -574,16 +537,47 @@ for n in range(nt):
     vel_tolerance = 1e-2
     p_tolerance = 1e-2
     
-    u_max_diff = np.max(np.abs(u_n[2:-2,2:-2] - u[2:-2,2:-2]))
-    v_max_diff = np.max(np.abs(v_n[2:-2,2:-2] - v[2:-2,2:-2]))
-    p_max_diff = np.max(np.abs(p_n[2:-2,2:-2] - p_old[2:-2,2:-2]))
+    # For u and p (both 16x42)
+    mask_u_p = np.ones_like(u, dtype=bool)
     
+    # For v (15x42)
+    mask_v = np.ones_like(v, dtype=bool)
+    
+    ignore_offset = 5
+
+    # For u and p:
+    mask_u_p[:ignore_offset, :] = False
+    mask_u_p[-ignore_offset:, :] = False
+    mask_u_p[:, :ignore_offset] = False
+    mask_u_p[:, -ignore_offset:] = False
+    
+    mask_u_p[obstacle_mask_p] = False  # For pressure
+    mask_u_p[obstacle_mask_u] = False  # For u
+    
+    # For v (note v has one less row in the vertical direction)
+    mask_v[:ignore_offset, :] = False
+    mask_v[-ignore_offset:, :] = False
+    mask_v[:, :ignore_offset] = False
+    mask_v[:, -ignore_offset:] = False
+    
+    # If you have a corresponding obstacle mask for v:
+    mask_v[obstacle_mask_v] = False
+
+    u_diff = np.abs(u_n - u)
+    v_diff = np.abs(v_n - v)
+    p_diff = np.abs(p_n - p_old)
+    
+    # Apply masks
+    u_diff[~mask_u_p] = 0
+    p_diff[~mask_u_p] = 0
+    v_diff[~mask_v] = 0
+    
+    u_max_diff = np.max(u_diff)
+    v_max_diff = np.max(v_diff)
+    p_max_diff = np.max(p_diff)
+
     
     max_vel_diff = max(u_max_diff, v_max_diff)  # combined velocity criterion
-    print(f"n: {n}, u_max_diff: {u_max_diff:.5f}, v_max_diff: {v_max_diff:.5f}, p_max_diff: {p_max_diff:.5f}, max_vel_diff: {max_vel_diff:.5f}, n_switch: {n_switch}")
-
-    if max_vel_diff < vel_tolerance and p_max_diff < p_tolerance and n!= 0:
-        n_switch = n+1
     
     u = u_n.copy()
     v = v_n.copy()
@@ -646,6 +640,9 @@ for n in range(nt):
         
         if int_flow != 0:
             mass_fraction = int_tracer / int_flow
+            mass_fraction_change = abs(mass_fraction - mass_fraction_last)
+            # else:
+            #     mass_fraction_change = None
         else:
             mass_fraction = 0.0
         c_n[inlet_mask_p] = 0.0
@@ -694,29 +691,27 @@ for n in range(nt):
             c_n[j,i] = (c_old[j,i] - dt*(ducdx + dvcdy) + dt*diffusion_coefficient*(d2cdx2 + d2cdy2))
     
     vol_flux = (int_flow+int_tracer)/rho
-    print(f'vol_flux= {vol_flux}')
-    # # else:
-    if n % 5 == 0 and n < n_switch:
-        plot_velocity(u_n,v_n)
-        # plot_pressure(p)
+    print(f'vol_flux from outlet = {vol_flux}')
 
-    elif n % 20 and n > n_switch:
-        # plot_pressure(p_n)
+
+    if n % 5 == 0:
+        plot_velocity(u_n,v_n)
+        plot_pressure(p)
         plot_scalar(c,mass_fraction)
-        # plot_mass_frac(mass_fraction)
-        if n % 200 == 0:
-            plot_u_velocity(u,v)
-            # plot_u_velocity(u,v)
-            # plot_v_velocity(u,v)
-            plot_pressure(p)
-        
-    # plot_scalar(c)
-    
+            
     time += dt
 
     selected_indices = np.where(inlet_mask_p)
-    num_cells_selected = len(selected_indices[0])
-    print(f"Number of inlet cells selected: {num_cells_selected}")
+    num_cells_selected = len(selected_indices[0])    
+    
+    print(f"n: {n}, p_max_diff: {p_max_diff:.5f}, max_vel_diff: {max_vel_diff:.5f}, mass_frac_diff: {mass_fraction_change}")
+
+    mass_frac_tolerance = 1e-3
+    if max_vel_diff < vel_tolerance and p_max_diff < p_tolerance and mass_fraction_change < mass_frac_tolerance and n > n_switch:
+        # n_switch = n+1
+        n_converge = n
+        break
+    
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 """Plotting"""
 
@@ -732,7 +727,7 @@ u[-1,:] = u[-2,:] # just for plotting
 y_fine = np.linspace(y[0], y[-1], 1000)  
 u_z_fine = -u_r * (y_fine / z_r) ** alpha  
 
-height_bldg = 18  # meters
+height_bldg = 20  # meters
 
 plt.figure()
 plt.plot(u_z_fine, y_fine, label='Analytical Wind Profile', color='blue', linewidth=2)  # Smooth analytical
@@ -785,25 +780,13 @@ plt.show()
 
 enddt = dt
 
-print(f"dx:{dx} m, dy:{dy} m")
-print(f'startdt: {startdt}')
-print(f'enddt: {enddt}')
-
-print('u_shape: ',u.shape)
-print('v_shape: ',v.shape)
-print('P_shape: ',p.shape)
-
-print(f'c old: {c_old}')
-print(f'c 1: {c_old}')
-print(f'c new: {c_n}')
 cmax = np.max(c_n)
 cmax_loc = np.argmax(c_n)
 rowmax, colmax = np.unravel_index(cmax_loc,c.shape)
-print(f'max_c:{cmax} at x:{colmax} and y:{rowmax}')
 
 plt.figure(figsize=(8, 6))
-plt.plot(range(len(pressure_convergence)), pressure_convergence, label="Pressure Convergence")
-plt.yscale('log')  # Logarithmic scale
+plt.plot(range(len(pressure_convergence)), pressure_convergence)
+plt.yscale('log')
 plt.xlabel("Iteration")
 plt.ylabel("Maximum Pressure Difference")
 plt.title("Pressure Convergence")
@@ -813,11 +796,13 @@ plt.savefig("Pressure Convergence Plot")
 plt.show()
 
 plt.figure(figsize=(8, 6))
-plt.plot(range(len(pressure_iterations)), pressure_iterations, label="Pressure Solver Iterations")
+plt.plot(range(len(pressure_iterations)), pressure_iterations)
 plt.xlabel("Timestep (n)")
-plt.ylabel("Number of Iterations to Converge")
+plt.ylabel("Pressure Solver Iterations")
 plt.title("Pressure Solver Convergence per Timestep")
 plt.grid(True)
 plt.legend()
-plt.savefig("Pressure Solver Convergence")
+plt.savefig("Pressure Poisson Solver Convergence")
 plt.show()
+
+print(pressure_iterations)
