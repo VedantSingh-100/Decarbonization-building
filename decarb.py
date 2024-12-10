@@ -11,32 +11,43 @@ apply_wind_profile = False #apply power-law profile (true) or uniform profile)
 apply_obstacle_mask = True  # Set to False to disable the obstacle mask
 initialize_flow = True
 
-u_r = 6      # m/s (reference wind speed)
-z_r = 6        # feet (reference height of measurement)
+u_r = 2      # m/s (reference wind speed)
+z_r = 1        # feet (reference height of measurement)
 
 u_vel = u_r    # m/s (uniform wind profile speed)
 v_vel = 0     # m/s (uniform wind profile speed)
 
-u_inlet = -12
-u_outlet = -12
+Lx = 450   # Length of domain in x-direction (change to 1)
+Ly = 100     # Length of domain in y-direction (change to 1)
 
-
-Lx = 500   # Length of domain in x-direction (change to 1)
-Ly = 126     # Length of domain in y-direction (change to 1)
-
-dx = 4
-dy = 4
+dx = 0.5      # TRY TO KEEP CONSTANT at 0.5, only change if divergence
+dy = 0.5      # TRY TO KEEP CONSTANT at 0.5, only change if divergence
 
 dt = 0
 
 diffusion_coefficient = 2*10**-5
 
 
-n_switch = 500
+n_switch = 50
 
 time = 0
 """ ^^^ Number of iterations and wind profile^^^ """
 
+""" Obstacle definition """
+### Define obstacle region in the middle of the domain ###
+
+obstacle_x_min = Lx/4
+obstacle_x_max = obstacle_x_min+10
+obstacle_y_min = 0
+obstacle_y_max = 20     # KEEP TOTAL AREA = 200 m2
+
+mult = 4/dx # multiplier to subtract the appropriate amount of cells from inlet wall face to define actual inlet
+
+vol_flow = 180  # m3/s  ###KEEP CONSTANT AT 180 FOR EXPERIMENTS
+u_inlet = -vol_flow/(obstacle_y_max - mult*dy)
+u_outlet = u_inlet
+
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 def add_obstacle_outline(ax, obstacle_x_min, obstacle_x_max, obstacle_y_min, obstacle_y_max):
     width = obstacle_x_max - obstacle_x_min
     height = obstacle_y_max - obstacle_y_min
@@ -369,12 +380,6 @@ particles[:, 0] = 0  # x-coordinate is fixed
 # particle y-coords
 particles[:, 1] = np.linspace(2, Ly-1, num_particles)
 
-### Define obstacle region in the middle of the domain ###
-obstacle_x_min = Lx/4
-obstacle_x_max = obstacle_x_min+10
-obstacle_y_min = 0
-obstacle_y_max = 20
-
 
 if apply_obstacle_mask:
     obstacle_mask_u = (XU >= obstacle_x_min) & (XU <= obstacle_x_max) & (YU >= obstacle_y_min) & (YU <= obstacle_y_max)
@@ -543,22 +548,23 @@ for n in range(nt):
     if apply_obstacle_mask:
         # inlet on right side (downwind)
         inlet_mask_u = ((XU >= obstacle_x_max - dx) & (XU <= obstacle_x_max)
-                        & (YU >= obstacle_y_min) & (YU <= obstacle_y_max))
+                        & (YU >= obstacle_y_min+mult/2*dy) & (YU <= obstacle_y_max-mult/2*dy))
         # outlet on left side (upwind)
         outlet_mask_u = ((XU >= obstacle_x_min) & (XU <= obstacle_x_min + dx) 
-                         & (YU >= obstacle_y_min) & (YU <= obstacle_y_max))
+                         & (YU >= obstacle_y_min+mult/2*dy) & (YU <= obstacle_y_max-mult/2*dy))
         
         inlet_mask_v = ((XV >= obstacle_x_max - dx) & (XV <= obstacle_x_max) 
-                        & (YV >= obstacle_y_min) & (YV <= obstacle_y_max))
+                        & (YV >= obstacle_y_min+mult/2*dy) & (YV <= obstacle_y_max-mult/2*dy))
         
         outlet_mask_v = ((XV >= obstacle_x_min) & (XV <= obstacle_x_min + dx)
-                         & (YV >= obstacle_y_min) & (YV <= obstacle_y_max))
+                         & (YV >= obstacle_y_min+mult/2*dy) & (YV <= obstacle_y_max-mult/2*dy))
         
         outlet_mask_p = ((XP >= obstacle_x_min) & (XP <= obstacle_x_min + dx) 
-                         & (YP >= obstacle_y_min) & (YP <= obstacle_y_max))
+                         & (YP >= obstacle_y_min+mult/2*dy) & (YP <= obstacle_y_max-mult/2*dy))
         
-        inlet_mask_p = ((XP >= obstacle_x_max+dx) & (XP <= obstacle_x_max+2*dx)
-                        & (YP >= obstacle_y_min) & (YP <= obstacle_y_max))
+        inlet_mask_p = ((XP >= obstacle_x_max+dx) & (XP < obstacle_x_max+2*dx)
+                        & (YP >= obstacle_y_min+mult/2*dy) & (YP < obstacle_y_max-mult/2*dy))
+
     
         # Zero out velocities in the obstacle region
         u_n[obstacle_mask_u] = 0
@@ -596,7 +602,11 @@ for n in range(nt):
             mass_fraction = int_tracer / int_flow
         else:
             mass_fraction = 0.0
-        
+        # Plot scalar field before zeroing out the inlet
+        plot_scalar(c, mass_fraction)
+        c_n[inlet_mask_p] = 0.0
+        c = c_n.copy()
+
         print(f"Mass fraction at building inlet: {mass_fraction}")
         
     for j in range(1, len(y_p)-2):
@@ -638,66 +648,9 @@ for n in range(nt):
             d2cdy2 = (c_old[j+1,i] - 2*c_old[j,i] + c_old[j-1,i]) / dy**2
     
             c_n[j,i] = (c_old[j,i] - dt*(ducdx + dvcdy) + dt*diffusion_coefficient*(d2cdx2 + d2cdy2))
-            
-            
-
-        
     
-    # """particles"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-    # if n > nt // 4:
-    #     # Keep track of active particles
-    #     active_particles = []
-    
-    #     for k in range(num_particles):
-    #         particle_x, particle_y = particles[k]
-    
-    #         # Check if the particle touches the top or right boundary
-    #         if particle_x >= Lx or particle_y >= Ly:
-    #             continue  # Ignore this particle (remove it from the active list)
-            
-    #         # Ensure particles remain within the domain for interpolation
-    #         i = min(max(int(particle_x / dx), 0), len(x_u) - 2)
-    #         j = min(max(int(particle_y / dy), 0), len(y_u) - 2)
-    
-    #         # Prevent index out of bounds for j+1 and i+1
-    #         j_next = min(j + 1, len(y_u) - 1)
-    #         i_next = min(i + 1, len(x_u) - 1)
-    
-    #         # Interpolate u velocity
-    #         u_interp = (u[j, i] * (1 - (particle_x % dx) / dx) * (1 - (particle_y % dy) / dy) +
-    #                     u[j, i_next] * ((particle_x % dx) / dx) * (1 - (particle_y % dy) / dy) +
-    #                     u[j_next, i] * (1 - (particle_x % dx) / dx) * ((particle_y % dy) / dy) +
-    #                     u[j_next, i_next] * ((particle_x % dx) / dx) * ((particle_y % dy) / dy))
-    
-    #         # Interpolate v velocity
-    #         v_interp = (v[j, i] * (1 - (particle_x % dx) / dx) * (1 - (particle_y % dy) / dy) +
-    #                     v[j, i_next] * ((particle_x % dx) / dx) * (1 - (particle_y % dy) / dy) +
-    #                     v[j_next, i] * (1 - (particle_x % dx) / dx) * ((particle_y % dy) / dy) +
-    #                     v[j_next, i_next] * ((particle_x % dx) / dx) * ((particle_y % dy) / dy))
-    
-    #         # Update particle position
-    #         particle_x += u_interp * dt
-    #         particle_y += v_interp * dt
-    
-    #         # Check again after update
-    #         if particle_x >= Lx or particle_y >= Ly:
-    #             continue  # Ignore this particle
-            
-    #         # Store updated position back in particles
-    #         particles[k] = [particle_x, particle_y]
-    #         active_particles.append([particle_x, particle_y])  # Track active particles
-    
-    #     # Update the particles array with only active particles
-    #     particles = np.array(active_particles)
-    #     num_particles = len(particles)  # Update the particle count
-    
-    #     # Extract x and y positions of all active particles
-    #     if len(particles) > 0:
-    #         particle_x_positions = particles[:, 0]
-    #         particle_y_positions = particles[:, 1]
-    #         # if n % 5 == 0:
-    #         #     plot_particles(particle_x_positions, particle_y_positions)
-    
+    vol_flux = (int_flow+int_tracer)/rho
+    print(f'vol_flux= {vol_flux}')
     # # else:
     if n % 50 == 0 and n < n_switch:
         plot_u_velocity(u_n,v_n)
@@ -707,7 +660,7 @@ for n in range(nt):
             plot_scalar(c,mass_fraction)
             # plot_mass_frac(mass_fraction)
         if n % 200 == 0:
-            plot_velocity(u,v)
+            plot_u_velocity(u,v)
             # plot_u_velocity(u,v)
             # plot_v_velocity(u,v)
             plot_pressure(p)
@@ -716,7 +669,9 @@ for n in range(nt):
     
     time += dt
 
-
+    selected_indices = np.where(inlet_mask_p)
+    num_cells_selected = len(selected_indices[0])
+    print(f"Number of inlet cells selected: {num_cells_selected}")
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 """Plotting"""
 
