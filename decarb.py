@@ -169,116 +169,154 @@ def apply_boundary_conditions(u, v, p, c):
 
 #     plt.show()
     
-def plot_velocity(u,v):
+# NEW CODE TO COPY 1:08 AM #############################################################
+
+def add_quiver(ax, X, Y, u, v, scale=20, skip=3, color='grey', width=0.001):
+    skip_slices = (slice(None, None, skip), slice(None, None, skip))
+    ax.quiver(
+        X[skip_slices], Y[skip_slices], u[skip_slices], v[skip_slices],
+        color=color, scale=scale, width=width
+    )
+
+    
+
+
+def plot_velocity(u, v):
     u_centered = 0.5 * (u[:-1, :-1] + u[1:, :-1])   # Average to cell centers in x-direction
     v_centered = 0.5 * (v[:, :-1] + v[:, 1:])       # Average to cell centers in y-direction
     velocity_magnitude = np.sqrt(u_centered**2 + v_centered**2)
-    
-    # # New meshgrid for plotting
-    # x_plot = np.arange(u_centered.shape[1])
-    # y_plot = np.arange(u_centered.shape[0])
-    # X_plot, Y_plot = np.meshgrid(x_plot, y_plot)
-    
+
     x_plot = x[:u_centered.shape[1]]
     y_plot = y[:u_centered.shape[0]]
     X_plot, Y_plot = np.meshgrid(x_plot, y_plot)
 
-    # velocity contour
-    plt.figure(figsize=(8, 6))
-    # plt.figure()
-    plt.contourf(X_plot, Y_plot, velocity_magnitude, levels=20, cmap='viridis')  # Contour plot
-    plt.colorbar(label='Velocity Magnitude [m/s]')
-    plt.xlabel('x')
-    plt.ylabel('y')
-    plt.title(f'Velocity Contour, n: {n}, t = {time:0.02f}[s]')
-    plt.axis('equal')
-    for xc in x:
-        plt.axvline(x=xc, color='white', linestyle='--', linewidth=0.5)
-    for yc in y:
-        plt.axhline(y=yc, color='white', linestyle='--', linewidth=0.5)
-    plt.show()
-    
-def plot_u_velocity(u,v):
-    u_centered = 0.5 * (u[:-1, :-1] + u[1:, :-1])   # Average to cell centers in x-direction
-    # v_centered = 0.5 * (v[:, :-1] + v[:, 1:])       # Average to cell centers in y-direction
-    # velocity_magnitude = np.sqrt(u_centered**2 + v_centered**2)
-    
-    # New meshgrid for plotting
-    # x_plot = np.arange(u_centered.shape[1])
-    # y_plot = np.arange(u_centered.shape[0])
-    X_plot, Y_plot = np.meshgrid(x, y)
-    
-    # u-velocity contour
-    plt.figure(figsize=(8, 6))
-    plt.contourf(X_plot, Y_plot, u_centered, levels=10, cmap='coolwarm')  # Contour plot
-    plt.colorbar(label='u-Velocity Magnitude [m/s]')
-    plt.xlabel('x')
-    plt.ylabel('y')
-    plt.title(f'u-Velocity Contour, n: {n}')
-    plt.title(f'Velocity Contour, n: {n}, t = {time:0.02f}[s]')
-    plt.axis('equal')
-    for xc in x:
-        plt.axvline(x=xc, color='white', linestyle='--', linewidth=0.5)
-    for yc in y:
-        plt.axhline(y=yc, color='white', linestyle='--', linewidth=0.5)
-    plt.show()
+    fig, ax = plt.subplots(figsize=(12, 4)) 
+    contour = ax.contourf(X_plot, Y_plot, velocity_magnitude, levels=np.linspace(0, np.max(velocity_magnitude), 21), cmap='viridis')
+    fig.colorbar(contour, ax=ax, label='Velocity Magnitude [m/s]')
 
-    
-def plot_v_velocity(u,v):
-    # u_centered = 0.5 * (u[:-1, :-1] + u[1:, :-1])   # Average to cell centers in x-direction
-    v_centered = 0.5 * (v[:, :-1] + v[:, 1:])       # Average to cell centers in y-direction
-    # velocity_magnitude = np.sqrt(u_centered**2 + v_centered**2)
-    
-    # New meshgrid for plotting
-    # x_plot = np.arange(u_centered.shape[1])
-    # y_plot = np.arange(u_centered.shape[0])
-    X_plot, Y_plot = np.meshgrid(x, y)
-    
-    # v-velocity contour
-    plt.figure(figsize=(8, 6))
-    plt.contourf(X_plot, Y_plot, v_centered, levels=10, cmap='viridis')  # Contour plot
-    plt.colorbar(label='Velocity Magnitude [m/s]')
-    plt.xlabel('x')
-    plt.ylabel('y')
-    plt.title(f'v-Velocity Contour, n: {n}')
-    plt.show()
-    
-def plot_pressure(p):
-    # pressure contour
-    plt.figure(figsize=(8, 6))
-    plt.contourf(XP, YP, p, levels=10, cmap='coolwarm')  # Contour plot
-    plt.colorbar(label='Pressure [Pa]')
-    plt.xlabel('x')
-    plt.ylabel('y')
-    plt.title(f'Pressure Contour, n: {n}')
-    for xc in x:
-        plt.axvline(x=xc, color='white', linestyle='--', linewidth=0.5)
-    for yc in y:
-        plt.axhline(y=yc, color='white', linestyle='--', linewidth=0.5)
-    plt.show()
-    
-def plot_scalar(c, mass_fraction):
-    
-    vmin = 0
-    vmax = 1
-    fig, ax = plt.subplots(figsize=(10, 8))
-    c_clip = np.clip(c,0,1)
-    # plt.contourf(XP, YP, c, levels=20, cmap='turbo') # Contour plot
-    contour = ax.contourf(XP, YP, c_clip, levels=np.linspace(vmin, vmax, 21), cmap='turbo')  # Contour plot
-    fig.colorbar(contour, ax=ax, label='Mass Frac')
+    add_quiver(ax, X_plot, Y_plot, u_centered, v_centered, scale=20, width=0.002)
+
     ax.set_xlabel('x')
     ax.set_ylabel('y')
-    ax.set_title(f'Mass fraction of carbon-depleted air, n: {n}, t = {time:0.02f}[s], depleted_intake_fraction = {mass_fraction*100}%')
-    ax.axis('equal')
+    ax.set_title(f'Velocity Contour with Vectors, n: {n}, t = {time:0.02f}[s]')
+
+
+    ax.set_xlim([0, 500])
+    ax.set_ylim([0, 126])
+    ax.set_aspect('auto') 
     add_obstacle_outline(ax, obstacle_x_min, obstacle_x_max, obstacle_y_min, obstacle_y_max)
 
-    for xc in x:
-        plt.axvline(x=xc, color='white', linestyle='--', linewidth=0.5)
-    for yc in y:
-        plt.axhline(y=yc, color='white', linestyle='--', linewidth=0.5)
+    plt.subplots_adjust(left=0.05, right=0.95, top=0.9, bottom=0.1)  
     plt.show()
 
+
+
+
     
+def plot_u_velocity(u, v):
+    u_centered = 0.5 * (u[:-1, :-1] + u[1:, :-1])  
+    x_plot = x[:u_centered.shape[1]]
+    y_plot = y[:u_centered.shape[0]]
+    X_plot, Y_plot = np.meshgrid(x_plot, y_plot)
+
+    fig, ax = plt.subplots(figsize=(12, 4))  
+    contour = ax.contourf(X_plot, Y_plot, u_centered, levels=np.linspace(np.min(u_centered), np.max(u_centered), 21), cmap='coolwarm')
+    fig.colorbar(contour, ax=ax, label='u-Velocity Magnitude [m/s]')
+
+    add_quiver(ax, X_plot, Y_plot, u_centered, np.zeros_like(u_centered), scale=20, width=0.002)
+
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_title(f'u-Velocity Contour with Vectors, n: {n}, t = {time:0.02f}[s]')
+
+
+    ax.set_xlim([0, 500])
+    ax.set_ylim([0, 126])
+    ax.set_aspect('auto')  
+    add_obstacle_outline(ax, obstacle_x_min, obstacle_x_max, obstacle_y_min, obstacle_y_max)
+
+    plt.subplots_adjust(left=0.05, right=0.95, top=0.9, bottom=0.1)  
+    plt.show()
+
+
+
+
+
+
+
+def plot_v_velocity(u, v):
+    v_centered = 0.5 * (v[:, :-1] + v[:, 1:])    
+    x_plot = x[:v_centered.shape[1]]
+    y_plot = y[:v_centered.shape[0]]
+    X_plot, Y_plot = np.meshgrid(x_plot, y_plot)
+
+    fig, ax = plt.subplots(figsize=(12, 4)) 
+    contour = ax.contourf(X_plot, Y_plot, v_centered, levels=np.linspace(np.min(v_centered), np.max(v_centered), 21), cmap='viridis')
+    fig.colorbar(contour, ax=ax, label='v-Velocity Magnitude [m/s]')
+
+    add_quiver(ax, X_plot, Y_plot, np.zeros_like(v_centered), v_centered, scale=20, width=0.002)
+
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_title(f'v-Velocity Contour with Vectors, n: {n}, t = {time:0.02f}[s]')
+
+    ax.set_xlim([0, 500])
+    ax.set_ylim([0, 126])
+    ax.set_aspect('auto') 
+    add_obstacle_outline(ax, obstacle_x_min, obstacle_x_max, obstacle_y_min, obstacle_y_max)
+
+    plt.subplots_adjust(left=0.05, right=0.95, top=0.9, bottom=0.1) 
+    plt.show()
+
+
+
+def plot_pressure(p, u, v):
+    x_plot = x[:p.shape[1]]
+    y_plot = y[:p.shape[0]]
+    X_plot, Y_plot = np.meshgrid(x_plot, y_plot)
+
+    fig, ax = plt.subplots(figsize=(12, 4)) 
+    contour = ax.contourf(X_plot, Y_plot, p, levels=np.linspace(np.min(p), np.max(p), 21), cmap='coolwarm')
+    fig.colorbar(contour, ax=ax, label='Pressure [Pa]')
+
+    add_quiver(ax, X_plot, Y_plot, u, v, scale=20, width=0.002)
+
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_title(f'Pressure Contour with Vectors, n: {n}, t = {time:0.02f}[s]')
+
+    ax.set_xlim([0, 500])
+    ax.set_ylim([0, 126])
+    ax.set_aspect('auto')  
+    add_obstacle_outline(ax, obstacle_x_min, obstacle_x_max, obstacle_y_min, obstacle_y_max)
+
+    plt.subplots_adjust(left=0.05, right=0.95, top=0.9, bottom=0.1) 
+    plt.show()
+
+
+def plot_scalar(c, mass_fraction):
+    c_clip = np.clip(c, 0, 1)
+    x_plot = x[:c.shape[1]]
+    y_plot = y[:c.shape[0]]
+    X_plot, Y_plot = np.meshgrid(x_plot, y_plot)
+
+    fig, ax = plt.subplots(figsize=(12, 4)) 
+    contour = ax.contourf(X_plot, Y_plot, c_clip, levels=np.linspace(0, 1, 21), cmap='turbo')
+    fig.colorbar(contour, ax=ax, label='Mass Fraction')
+
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_title(f'Mass Fraction, n: {n}, t = {time:0.02f}[s], depleted_intake_fraction = {mass_fraction * 100:.1f}%')
+
+    ax.set_xlim([0, 500])
+    ax.set_ylim([0, 126])
+    ax.set_aspect('auto')  
+    add_obstacle_outline(ax, obstacle_x_min, obstacle_x_max, obstacle_y_min, obstacle_y_max)
+
+    plt.subplots_adjust(left=0.05, right=0.95, top=0.9, bottom=0.1) 
+    plt.show()
+
+
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
 """Grid and field initialization"""""
