@@ -5,32 +5,32 @@ from matplotlib.colors import TwoSlopeNorm
 """ vvv Number of iterations and wind profile vvv  and other parameters"""
 
 nt = 10000 #timesteps
-apply_wind_profile = True #apply power-law profile (true) or uniform profile)
+apply_wind_profile = False #apply power-law profile (true) or uniform profile)
 apply_obstacle_mask = True  # Set to False to disable the obstacle mask
 initialize_flow = True
 
-u_r = 6.49      # m/s (reference wind speed)
+u_r = 6      # m/s (reference wind speed)
 z_r = 6        # feet (reference height of measurement)
 
 u_vel = u_r    # m/s (uniform wind profile speed)
 v_vel = 0     # m/s (uniform wind profile speed)
 
-u_inlet = -5
-u_outlet = -5
+u_inlet = -12
+u_outlet = -12
 
 
 Lx = 200   # Length of domain in x-direction (change to 1)
-Ly = 100     # Length of domain in y-direction (change to 1)
+Ly = 75     # Length of domain in y-direction (change to 1)
 
-dx = 3
-dy = 3
+dx = 2.5
+dy = 2.5
 
 dt = 0
 
 diffusion_coefficient = 2*10**-5
 
 
-n_switch = 500
+n_switch = 1
 
 time = 0
 """ ^^^ Number of iterations and wind profile^^^ """
@@ -361,10 +361,6 @@ time = 0
 for n in range(nt):
     
     c_old = c.copy()
-    
-    if n > n_switch:
-        c[5,5] = 1
-        c_old = c.copy()
 
     nu = calculate_courrant(u, v, dt)
     dt = calculate_dt(u, v)
@@ -439,7 +435,7 @@ for n in range(nt):
                        * ((u_frac[j,i] - u_frac[j,i-1]) / dx + (v_frac[j,i] - v_frac[j-1,i]) / dy))
 
         
-    tolerance = 1e-4  # Convergence tolerance
+    tolerance = 1e-3  # Convergence tolerance
     max_iterations = 100000  # Maximum number of iterations to prevent infinite looping
     omega = 0.7  # relaxation factor
     for it in range(max_iterations):  # Maximum number of Poisson iterations per time step
@@ -475,7 +471,71 @@ for n in range(nt):
     
     u_n, v_n, p_n = apply_boundary_conditions(u_n, v_n, p_n, c_n)
     
+    
+    # Apply obstacle condition
+    # c_n[obstacle_mask_c] = 0    
+    # After the loop, copy the new values:
+    # c = c_n.copy()
 
+    
+    """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+    vel_tolerance = 1e-7
+    p_tolerance = 1e-6
+    
+    u_max_diff = np.max(np.abs(u_n - u))
+    v_max_diff = np.max(np.abs(v_n - v))
+    p_max_diff = np.max(np.abs(p_n - p_old))
+    
+    max_vel_diff = max(u_max_diff, v_max_diff)  # combined velocity criterion
+    
+    # if max_vel_diff < vel_tolerance and p_max_diff < p_tolerance and n!= 0:
+    #     break
+
+    u = u_n.copy()
+    v = v_n.copy()
+    p = p_n.copy()
+    c = c_n.copy()
+    
+    """obstacle"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+    if apply_obstacle_mask:
+        # inlet on right side (downwind)
+        inlet_mask_u = ((XU >= obstacle_x_max - dx) & (XU <= obstacle_x_max)
+                        & (YU >= obstacle_y_min) & (YU <= obstacle_y_max))
+        # outlet on left side (upwind)
+        outlet_mask_u = ((XU >= obstacle_x_min) & (XU <= obstacle_x_min + dx) 
+                         & (YU >= obstacle_y_min) & (YU <= obstacle_y_max))
+        
+        inlet_mask_v = ((XV >= obstacle_x_max - dx) & (XV <= obstacle_x_max) 
+                        & (YV >= obstacle_y_min) & (YV <= obstacle_y_max))
+        
+        outlet_mask_v = ((XV >= obstacle_x_min) & (XV <= obstacle_x_min + dx)
+                         & (YV >= obstacle_y_min) & (YV <= obstacle_y_max))
+        
+        outlet_mask_p = ((XP >= obstacle_x_min) & (XP <= obstacle_x_min + dx) 
+                         & (YP >= obstacle_y_min) & (YP <= obstacle_y_max))
+        
+        # inlet_mask_p = ((XP >= obstacle_x_max - 4*dx) & (XP <= obstacle_x_max - 3*dx)
+        #                 & (YP >= obstacle_y_min) & (YP <= obstacle_y_max))
+    
+        # Zero out velocities in the obstacle region
+        u_n[obstacle_mask_u] = 0
+        v_n[obstacle_mask_v] = 0
+    
+        # Set inlet velocities
+        u[inlet_mask_u] = u_inlet
+        v[inlet_mask_v] = 0  # Assume no vertical velocity at the inlet
+    
+        # Set outlet velocities
+        u[outlet_mask_u] = u_outlet
+        v[outlet_mask_v] = 0  # Assume no vertical velocity at the outlet
+        
+        c_n[obstacle_mask_c] = 0
+        
+        if n > n_switch:
+            c_n[outlet_mask_p] = 1.0
+        
+        c = c_n.copy()
+        
     for j in range(1, len(y_p)-2):
         for i in range(1, len(x_p)-1):
             
@@ -515,62 +575,7 @@ for n in range(nt):
             d2cdy2 = (c_old[j+1,i] - 2*c_old[j,i] + c_old[j-1,i]) / dy**2
     
             c_n[j,i] = (c_old[j,i] - dt*(ducdx + dvcdy) + dt*diffusion_coefficient*(d2cdx2 + d2cdy2))
-    
-    # Apply obstacle condition
-    c_n[obstacle_mask_c] = 0
-    
-    # After the loop, copy the new values:
-    c = c_n.copy()
-
-    
-    """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-    vel_tolerance = 1e-7
-    p_tolerance = 1e-6
-    
-    u_max_diff = np.max(np.abs(u_n - u))
-    v_max_diff = np.max(np.abs(v_n - v))
-    p_max_diff = np.max(np.abs(p_n - p_old))
-    
-    max_vel_diff = max(u_max_diff, v_max_diff)  # combined velocity criterion
-    
-    # if max_vel_diff < vel_tolerance and p_max_diff < p_tolerance and n!= 0:
-    #     break
-
-    u = u_n.copy()
-    v = v_n.copy()
-    p = p_n.copy()
-    c = c_n.copy()
-    
-    """obstacle"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-    if apply_obstacle_mask:
-        # inlet on right side (downwind)
-        inlet_mask_u = ((XU >= obstacle_x_max - dx) & (XU <= obstacle_x_max)
-                        & (YU >= obstacle_y_min) & (YU <= obstacle_y_max))
-        # outlet on left side (upwind)
-        outlet_mask_u = ((XU >= obstacle_x_min) & (XU <= obstacle_x_min + dx) 
-                         & (YU >= obstacle_y_min) & (YU <= obstacle_y_max))
         
-        inlet_mask_v = ((XV >= obstacle_x_max - dx) & (XV <= obstacle_x_max) 
-                        & (YV >= obstacle_y_min) & (YV <= obstacle_y_max))
-        
-        outlet_mask_v = ((XV >= obstacle_x_min) & (XV <= obstacle_x_min + dx)
-                         & (YV >= obstacle_y_min) & (YV <= obstacle_y_max))
-        
-        outlet_mask_p = ((XP >= obstacle_x_min) & (XP <= obstacle_x_min + dx) 
-                         & (YP >= obstacle_y_min) & (YP <= obstacle_y_max))
-    
-        # Zero out velocities in the obstacle region
-        u_n[obstacle_mask_u] = 0
-        v_n[obstacle_mask_v] = 0
-    
-        # Set inlet velocities
-        u[inlet_mask_u] = u_inlet
-        v[inlet_mask_v] = 0  # Assume no vertical velocity at the inlet
-    
-        # Set outlet velocities
-        u[outlet_mask_u] = u_outlet
-        v[outlet_mask_v] = 0  # Assume no vertical velocity at the outlet
-
     
     """particles"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
     if n > nt // 4:
