@@ -6,7 +6,7 @@ from matplotlib.patches import Rectangle
 
 """ vvv Number of iterations and wind profile vvv  and other parameters"""
 
-nt = 50 #timesteps
+nt = 10000 #timesteps
 apply_wind_profile = True #apply power-law profile (true) or uniform profile)
 apply_obstacle_mask = True  # Set to False to disable the obstacle mask
 initialize_flow = True
@@ -20,14 +20,14 @@ v_vel = 0     # m/s (uniform wind profile speed)
 Lx = 500   # Length of domain in x-direction (VARY THIS IF FLOW TOUCHES BOUNDARY)
 Ly = 130     # Length of domain in y-direction (INCREASE THIS IF FLOW TOUCHES BOUNDARY)
 
-dx = 5      # TRY TO KEEP CONSTANT at 1, only change if divergence
-dy = 5      # TRY TO KEEP CONSTANT at 1, only change if divergence
+dx = 1      # TRY TO KEEP CONSTANT at 1, only change if divergence
+dy = 1      # TRY TO KEEP CONSTANT at 1, only change if divergence
 
 dt = 0
 
 diffusion_coefficient = 2*10**-5
 
-n_switch = 10
+n_switch = 500
 
 time = 0
 """ ^^^ Number of iterations and wind profile^^^ """
@@ -136,7 +136,7 @@ def apply_boundary_conditions(u, v, p, c):
     return u, v, p
 
 
-def add_quiver(ax, X, Y, u, v, scale=500, skip=1, color='grey', width=0.001):
+def add_quiver(ax, X, Y, u, v, scale=1000, skip=10, color='grey', width=0.001):
     skip_slices = (slice(None, None, skip), slice(None, None, skip))
     ax.quiver(
         X[skip_slices], Y[skip_slices], u[skip_slices], v[skip_slices],
