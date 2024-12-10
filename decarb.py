@@ -1,26 +1,38 @@
 import numpy as np
 import matplotlib.pyplot as plt
-
+from matplotlib.colors import TwoSlopeNorm
 
 """ vvv Number of iterations and wind profile vvv  and other parameters"""
 
 nt = 10000 #timesteps
 apply_wind_profile = True #apply power-law profile (true) or uniform profile)
 apply_obstacle_mask = True  # Set to False to disable the obstacle mask
+initialize_flow = True
 
-
-u_vel = 1      # m/s (uniform wind profile speed)
-v_vel = 0      # m/s (uniform wind profile speed)
-u_r = 8.49      # m/s (reference wind speed)
+u_r = 6.49      # m/s (reference wind speed)
 z_r = 6        # feet (reference height of measurement)
 
+u_vel = u_r    # m/s (uniform wind profile speed)
+v_vel = 0     # m/s (uniform wind profile speed)
 
-Lx = 200    # Length of domain in x-direction (change to 1)
-Ly = 150     # Length of domain in y-direction (change to 1)
+u_inlet = -5
+u_outlet = -5
 
-dx = 10
-dy = 10
 
+Lx = 200   # Length of domain in x-direction (change to 1)
+Ly = 100     # Length of domain in y-direction (change to 1)
+
+dx = 3
+dy = 3
+
+dt = 0
+
+diffusion_coefficient = 2*10**-5
+
+
+n_switch = 500
+
+time = 0
 """ ^^^ Number of iterations and wind profile^^^ """
 
 def plot_particles(particle_x_positions,particle_y_positions):
@@ -33,7 +45,6 @@ def plot_particles(particle_x_positions,particle_y_positions):
     plt.title('Particle Trajectories')
     plt.gca().set_aspect('equal', adjustable='box')
     plt.legend()
-    # plt.grid(True, which='both', linestyle='--', color='gray', linewidth=0.5)
     for xc in x:
         plt.axvline(x=xc, color='black', linestyle='--', linewidth=0.5)
     for yc in y:
@@ -46,13 +57,25 @@ def calculate_dt(u,v):
     vel_dlength_max = max(u_max/dx,v_max/dy)
     courrant_num_adjuster = 0.3
     dt = 1/vel_dlength_max
-    print(f'n: {n}, calculated dt: {dt}')
     
-    # Viscous/diffusive dt?
+    # Viscous/diffusive dt
     dt_diff = dx**2/(mu/rho)
-    if dt_diff < dt:
-        print('\n\n\n\ndt_diff used!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\n\n\n')
-    return courrant_num_adjuster*min(dt,dt_diff)
+        
+    dt_diff_sc = dx**2 / (4.0 * diffusion_coefficient)
+    
+    dt_min = min(dt, dt_diff, dt_diff_sc)
+
+    # Determine which dt is chosen and print an explanation
+    if dt_min == dt:
+        dt_type = "convective dt (Courant number limit)"
+    elif dt_min == dt_diff:
+        dt_type = "viscous/diffusive dt (based on dynamic viscosity)"
+    elif dt_min == dt_diff_sc:
+        dt_type = "scalar diffusion dt (based on diffusion coefficient)"
+    else:
+        dt_type = "unknown dt type"
+    print(f'n: {n}, chosen dt: {dt_min} ({dt_type})')
+    return courrant_num_adjuster*min(dt,dt_diff,dt_diff_sc)
 
 def calculate_courrant(u,v,dt):
     u_max = np.max(np.abs(u))
@@ -81,10 +104,6 @@ def apply_boundary_conditions(u, v, p, c):
     # p[:,-1] = p[:,-2]  # P(M+1,1) = -P(M,1)
     v[:,-1] = v[:,-2]   # dv/dx = 0
     
-    # # Top boundary, outflow
-    # u[-1,:] = -u[-2,:]  # no slip at top wall
-    # p[-1,:] = p[-2,:]   # top wall, horizontal wall dP/dy = 0
-    # v[-1,:] = 0         # impermeable wall, v = 0
     # Top boundary, pressure outlet
     u[-1, :] = u[-2, :]  # Zero gradient for horizontal velocity
     v[-1, :] = v[-2, :]  # Zero gradient for vertical velocity
@@ -95,13 +114,7 @@ def apply_boundary_conditions(u, v, p, c):
     u[0,:] = -u[1,:]    # no slip at bottom wall
     p[0,:] = p[1,:]     # bottom wall, horizontal wall dP/dy = 0 
     v[0,:] = 0          # bottom wall (ground), v = 0
-    
-    # Top boundary, wall
-    # c[-1,:] = -c[-2,:]  # no slip at top wall
-    # c[0,:] = -c[1,:]    # no slip at bottom wall
-    # c[:,0] = c[:,1]     # dP/dx|x=0 = 0
-    # c[:,-1] = c[:,-2]   # u(M+1,1) = u(M,1)
-    
+
     return u, v, p
     
 def plot_velocity(u,v):
@@ -125,7 +138,7 @@ def plot_velocity(u,v):
     plt.colorbar(label='Velocity Magnitude [m/s]')
     plt.xlabel('x')
     plt.ylabel('y')
-    plt.title(f'Velocity Contour, n: {n}')
+    plt.title(f'Velocity Contour, n: {n}, t = {time:0.02f}[s]')
     plt.axis('equal')
     for xc in x:
         plt.axvline(x=xc, color='white', linestyle='--', linewidth=0.5)
@@ -145,12 +158,19 @@ def plot_u_velocity(u,v):
     
     # u-velocity contour
     plt.figure(figsize=(8, 6))
-    plt.contourf(X_plot, Y_plot, u_centered, levels=10, cmap='viridis')  # Contour plot
+    plt.contourf(X_plot, Y_plot, u_centered, levels=10, cmap='coolwarm')  # Contour plot
     plt.colorbar(label='Velocity Magnitude [m/s]')
     plt.xlabel('x')
     plt.ylabel('y')
     plt.title(f'u-Velocity Contour, n: {n}')
+    plt.title(f'Velocity Contour, n: {n}, t = {time:0.02f}[s]')
+    plt.axis('equal')
+    for xc in x:
+        plt.axvline(x=xc, color='white', linestyle='--', linewidth=0.5)
+    for yc in y:
+        plt.axhline(y=yc, color='white', linestyle='--', linewidth=0.5)
     plt.show()
+
     
 def plot_v_velocity(u,v):
     # u_centered = 0.5 * (u[:-1, :-1] + u[1:, :-1])   # Average to cell centers in x-direction
@@ -179,29 +199,23 @@ def plot_pressure(p):
     plt.xlabel('x')
     plt.ylabel('y')
     plt.title(f'Pressure Contour, n: {n}')
+    for xc in x:
+        plt.axvline(x=xc, color='white', linestyle='--', linewidth=0.5)
+    for yc in y:
+        plt.axhline(y=yc, color='white', linestyle='--', linewidth=0.5)
     plt.show()
     
 def plot_scalar(c):
-    # pressure contour
-    # plt.figure(figsize=(8, 6))
-    # plt.contourf(XP, YP, p, levels=10, cmap='coolwarm')  # Contour plot
-    # plt.colorbar(label='Pressure [Pa]')
-    # plt.xlabel('x')
-    # plt.ylabel('y')
-    # plt.title(f'Pressure Contour, n: {n}')
-    # plt.show()
     
-    # scalar contour
-    vmin = 0
-    vmax = 2
-    # c = np.clip(c, vmin, vmax)
+    # vmin = 0
+    # vmax = 0.5
     plt.figure(figsize=(8, 6))
     plt.contourf(XP, YP, c, levels=20, cmap='coolwarm') # Contour plot
     # plt.contourf(XP, YP, c, levels=np.linspace(vmin, vmax, 21), cmap='coolwarm')  # Contour plot
     plt.colorbar(label='Scalar concentration [c]')
     plt.xlabel('x')
     plt.ylabel('y')
-    plt.title(f'Scalar Concentration Contour, n: {n}')
+    plt.title(f'Scalar Concentration Contour, n: {n}, t = {time:0.02f}[s]')
     plt.axis('equal')
     
     for xc in x:
@@ -242,8 +256,6 @@ p = np.zeros([len(y_p),len(x_p)])
 
 c = np.zeros_like(p) #scalar transport
 midpoint = len(c) // 2
-#TODO
-#c[4,4] = 10
 
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 """wind"""
@@ -256,9 +268,7 @@ if apply_wind_profile:
     u[:, 0] = u_r * (y_padded / z_r) ** alpha
 else:
     u[:,0] = u_vel      # velocity at left-side boundary
-    
-dt = dx/u_vel * .9  #seconds
-startdt = dt
+
 
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 """BCs"""
@@ -269,14 +279,8 @@ x_u = np.arange(0, (Lx+dx) + dx, dx)  # Adding extra column of ghost nodes at ri
 XU,YU = np.meshgrid(x_u,y_u)        # Recreating meshgrid for plotting
 u = np.zeros([len(y_u),len(x_u)])
 
-# y_v = np.arange(0,(Ly+dy) + dy, dy)      # Adding extra column of ghost nodes at right side boundary
-# XV,YV = np.meshgrid(x_u,y_u)        # Recreating meshgrid for plotting
-# v = np.zeros([len(y_v),len(x_v)])
-
-## Adding ghost nodes in x_p at right boundary
-# x_p = np.arange(0,(Lx+dx)+dx + dx, dx)   # Adding extra column of ghost nodes at right side boundary
-# XP, YP = np.meshgrid(x_p, y_p)      # Recreating meshgrid for plotting
-# p = np.zeros([len(y_p),len(x_p)])
+if initialize_flow:
+    u[:,:] = u_vel
 
 u, v, p = apply_boundary_conditions(u,v,p,c)
 
@@ -322,17 +326,12 @@ particles[:, 0] = 0  # x-coordinate is fixed
 # particle y-coords
 particles[:, 1] = np.linspace(2, Ly-1, num_particles)
 
-
 ### Define obstacle region in the middle of the domain ###
-obstacle_x_min = Lx/5
+obstacle_x_min = Lx/3
 obstacle_x_max = obstacle_x_min+10
 obstacle_y_min = 0
 obstacle_y_max = 20
 
-# obstacle_mask_u = (XU >= obstacle_x_min) & (XU <= obstacle_x_max) & (YU >= obstacle_y_min) & (YU <= obstacle_y_max)
-# obstacle_mask_v = (XV >= obstacle_x_min) & (XV <= obstacle_x_max) & (YV >= obstacle_y_min) & (YV <= obstacle_y_max)
-# obstacle_mask_p = (XP >= obstacle_x_min) & (XP <= obstacle_x_max) & (YP >= obstacle_y_min) & (YP <= obstacle_y_max)
-# obstacle_mask_c = (XP >= obstacle_x_min) & (XP <= obstacle_x_max) & (YP >= obstacle_y_min) & (YP <= obstacle_y_max)
 
 if apply_obstacle_mask:
     obstacle_mask_u = (XU >= obstacle_x_min) & (XU <= obstacle_x_max) & (YU >= obstacle_y_min) & (YU <= obstacle_y_max)
@@ -350,31 +349,28 @@ else:
 u[obstacle_mask_u] = 0
 v[obstacle_mask_v] = 0
 
-for n in range(nt):
-        
-    if n == 30:
-        c[5,5] = 0
-        c_old = c.copy()
-        # print(f'start c at n:{n}: ')
-        
-    # if n == (nt//2 + 6):
-    #     # c[4,4] = 10
-    #     c_1 = c_n.copy()
+# Compute maximum velocity magnitude (u or v) dynamically
+u_max = np.max(np.abs(u))  # Maximum horizontal velocity
+v_max = np.max(np.abs(v))  # Maximum vertical velocity
+max_velocity = max(u_max, v_max)
 
+dt = min(dx, dy) / max_velocity * 0.9  # CFL condition with safety factor
+# dt = min(dtx,dty)
+startdt = dt
+time = 0
+for n in range(nt):
     
+    c_old = c.copy()
+    
+    if n > n_switch:
+        c[5,5] = 1
+        c_old = c.copy()
+
     nu = calculate_courrant(u, v, dt)
     dt = calculate_dt(u, v)
     
     p_old = p_n.copy()
     
-    # print(f'n:{n}')
-    # print(f'u_max:{u_max}')
-    # print(f'v_max:{v_max}')
-    # print(f'nu_u:{nu_u}')
-    # print(f'nu_v:{nu_v}')
-    # print(f'u_dlength_max:{u_max/dx}')
-    # print(f'v_dlength_max:{v_max/dy}')
-    # print(f'new dt: {dt}')
     
     for j in interior_y_u:
         for i in interior_x_u:
@@ -478,35 +474,58 @@ for n in range(nt):
             v_n[j, i] = v_frac[j, i] - dt * dpdy  # Update v
     
     u_n, v_n, p_n = apply_boundary_conditions(u_n, v_n, p_n, c_n)
-
-    u_n[obstacle_mask_u] = 0
-    v_n[obstacle_mask_v] = 0
     
-    """scalar transport"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-    for j in range(1, len(y_p) - 3):
-        for i in range(1, len(x_p) - 2):
+
+    for j in range(1, len(y_p)-2):
+        for i in range(1, len(x_p)-1):
+            
+            # left face (between i and i-1):
             if u[j,i] > 0:
-                ducdx = (1/dx * (c_n[j,i] * (u[j,i] + u[j,i-1])/2)
-                        - c_n[j,i-1] * (u[j,i-1] + u[j,i-2])/2)
+                c_left = c_old[j,i-1]
             else:
-                ducdx = (1/dx * (c_n[j,i] * (u[j,i] + u[j,i+1])/2)
-                    - c_n[j,i+1] * (u[j,i+1] + u[j,i+2])/2)
-                
-            if v[j,i] > 0:
-                dvcdy = (1/dy * (c_n[j,i] * (v[j,i] + v[j-1,i])/2)
-                    - c_n[j-1,i] * (v[j-1,i] + v[j-2,i])/2)
+                c_left = c_old[j,i]
+            flux_left = u[j,i] * c_left
+            
+            # right face (between i and i+1):
+            if u[j,i+1] > 0:
+                c_right = c_old[j,i]
             else:
-                dvcdy = (1/dy * (c_n[j,i] * (v[j,i] + v[j+1,i])/2)
-                    - c_n[j+1,i] * (v[j+1,i] + v[j+2,i])/2)
-                
-            c_n[j,i] = dt * -(ducdx + dvcdy) + c[j,i]
-            c_n[obstacle_mask_c] = 0
-
+                c_right = c_old[j,i+1]
+            flux_right = u[j,i+1] * c_right
     
+            ducdx = (flux_right - flux_left) / dx
+    
+            # bottom face flux (between j and j+1):
+            if v[j,i] > 0:
+                c_bottom = c_old[j-1,i]  
+            else:
+                c_bottom = c_old[j,i]    
+            flux_bottom = v[j,i] * c_bottom
+    
+            # Top face flux (between j and j+1):
+            if v[j+1,i] > 0:
+                c_top = c_old[j,i]       
+            else:
+                c_top = c_old[j+1,i]
+            flux_top = v[j+1,i] * c_top
+    
+            dvcdy = (flux_top - flux_bottom) / dy
+    
+            d2cdx2 = (c_old[j,i+1] - 2*c_old[j,i] + c_old[j,i-1]) / dx**2
+            d2cdy2 = (c_old[j+1,i] - 2*c_old[j,i] + c_old[j-1,i]) / dy**2
+    
+            c_n[j,i] = (c_old[j,i] - dt*(ducdx + dvcdy) + dt*diffusion_coefficient*(d2cdx2 + d2cdy2))
+    
+    # Apply obstacle condition
+    c_n[obstacle_mask_c] = 0
+    
+    # After the loop, copy the new values:
+    c = c_n.copy()
+
     
     """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-    vel_tolerance = 1e-6
-    p_tolerance = 1e-4
+    vel_tolerance = 1e-7
+    p_tolerance = 1e-6
     
     u_max_diff = np.max(np.abs(u_n - u))
     v_max_diff = np.max(np.abs(v_n - v))
@@ -514,27 +533,47 @@ for n in range(nt):
     
     max_vel_diff = max(u_max_diff, v_max_diff)  # combined velocity criterion
     
-    if max_vel_diff < vel_tolerance and p_max_diff < p_tolerance and n!= 0:
-    # if p_max_diff < p_tolerance and n!= 0:
-
-        # print(f"Steady state, n: {n}")
-        # obstacle_mask_u = (XU >= obstacle_x_min) & (XU <= obstacle_x_max) & (YU >= obstacle_y_min) & (YU <= obstacle_y_max)
-        # obstacle_mask_v = (XV >= obstacle_x_min) & (XV <= obstacle_x_max) & (YV >= obstacle_y_min) & (YV <= obstacle_y_max)
-        # obstacle_mask_p = (XP >= obstacle_x_min) & (XP <= obstacle_x_max) & (YP >= obstacle_y_min) & (YP <= obstacle_y_max)
-        # obstacle_mask_c = (XP >= obstacle_x_min) & (XP <= obstacle_x_max) & (YP >= obstacle_y_min) & (YP <= obstacle_y_max)
-        break
-    # print(f'c {n}: {c}')
+    # if max_vel_diff < vel_tolerance and p_max_diff < p_tolerance and n!= 0:
+    #     break
 
     u = u_n.copy()
     v = v_n.copy()
     p = p_n.copy()
     c = c_n.copy()
+    
+    """obstacle"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+    if apply_obstacle_mask:
+        # inlet on right side (downwind)
+        inlet_mask_u = ((XU >= obstacle_x_max - dx) & (XU <= obstacle_x_max)
+                        & (YU >= obstacle_y_min) & (YU <= obstacle_y_max))
+        # outlet on left side (upwind)
+        outlet_mask_u = ((XU >= obstacle_x_min) & (XU <= obstacle_x_min + dx) 
+                         & (YU >= obstacle_y_min) & (YU <= obstacle_y_max))
+        
+        inlet_mask_v = ((XV >= obstacle_x_max - dx) & (XV <= obstacle_x_max) 
+                        & (YV >= obstacle_y_min) & (YV <= obstacle_y_max))
+        
+        outlet_mask_v = ((XV >= obstacle_x_min) & (XV <= obstacle_x_min + dx)
+                         & (YV >= obstacle_y_min) & (YV <= obstacle_y_max))
+        
+        outlet_mask_p = ((XP >= obstacle_x_min) & (XP <= obstacle_x_min + dx) 
+                         & (YP >= obstacle_y_min) & (YP <= obstacle_y_max))
+    
+        # Zero out velocities in the obstacle region
+        u_n[obstacle_mask_u] = 0
+        v_n[obstacle_mask_v] = 0
+    
+        # Set inlet velocities
+        u[inlet_mask_u] = u_inlet
+        v[inlet_mask_v] = 0  # Assume no vertical velocity at the inlet
+    
+        # Set outlet velocities
+        u[outlet_mask_u] = u_outlet
+        v[outlet_mask_v] = 0  # Assume no vertical velocity at the outlet
 
-    u[obstacle_mask_u] = 0
-    v[obstacle_mask_v] = 0
     
     """particles"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-    if n > nt // 2:
+    if n > nt // 4:
         # Keep track of active particles
         active_particles = []
     
@@ -585,14 +624,18 @@ for n in range(nt):
         if len(particles) > 0:
             particle_x_positions = particles[:, 0]
             particle_y_positions = particles[:, 1]
-            if n % 5 == 0:
-                plot_particles(particle_x_positions, particle_y_positions)
+            # if n % 5 == 0:
+            #     plot_particles(particle_x_positions, particle_y_positions)
     
+    # # else:
+    if n % 1 == 0 and n < n_switch:
+        plot_u_velocity(u_n,v_n)
     else:
-        if n % 5 == 0:
-            plot_velocity(u_n,v_n)
-        # plot_scalar(c)
+        # plot_pressure(p_n)
+        plot_scalar(c)
     # plot_scalar(c)
+    
+    time += dt
 
 
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
