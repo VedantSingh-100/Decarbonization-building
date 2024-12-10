@@ -185,34 +185,113 @@ if n % 50 == 0:
     plt.savefig(filename)
     plt.close()  # Close the figure to free up memory
 
-# Final visualization
-plt.figure(figsize=(11, 7))
-plt.contourf(X, Y, np.sqrt(u**2 + v**2), alpha=0.5, cmap="viridis")  # Velocity magnitude
-plt.colorbar(label='Velocity magnitude')
-plt.quiver(X[::3, ::3], Y[::3, ::3], u[::3, ::3], v[::3, ::3], scale=10)  # Velocity vectors
-plt.xlabel('X')
-plt.ylabel('Y')
-plt.title('Velocity field after {} time steps'.format(nt))
+def compute_pressure_gradients(p, dx, dy):
+    """Compute the pressure gradients."""
+    dpdx = np.gradient(p, axis=1) / dx
+    dpdy = np.gradient(p, axis=0) / dy
+    return dpdx, dpdy
 
-# Plot full obstacle as black outline
-plt.plot([obstacle_x, obstacle_x + obstacle_width, obstacle_x + obstacle_width, obstacle_x, obstacle_x],
-         [obstacle_y, obstacle_y, obstacle_y + obstacle_height, obstacle_y + obstacle_height, obstacle_y],
-         'k-', linewidth=2, label="Obstacle")  # Black outline for obstacle
 
-# Highlight inlet region 
-inlet_start_y = obstacle_y + 0.45 * obstacle_height  # Start point 
-inlet_end_y = obstacle_y + 0.55 * obstacle_height    # End point 
-plt.plot([obstacle_x, obstacle_x],  # x-coordinates
-         [inlet_start_y, inlet_end_y],  # y-coordinates
-         'b-', linewidth=2, label="Inlet")  
+def plot_velocity_pressure_vectors(X, Y, u, v, p, dx, dy, obstacle_coords, n=None, save_path=None):
+    """Plot velocity and pressure vectors."""
+    plt.figure(figsize=(11, 7))
+    velocity_mag = np.sqrt(u**2 + v**2)
+    dpdx, dpdy = compute_pressure_gradients(p, dx, dy)
+    pressure_mag = np.sqrt(dpdx**2 + dpdy**2)
 
-# Highlight outlet region 
-outlet_start_y = obstacle_y + 0.45 * obstacle_height  # Start point 
-outlet_end_y = obstacle_y + 0.55 * obstacle_height    # End point 
-plt.plot([obstacle_x + obstacle_width, obstacle_x + obstacle_width],  # x-coordinates
-         [outlet_start_y, outlet_end_y],  # y-coordinates
-         'r-', linewidth=2, label="Outlet") 
+    # Contour plot for velocity magnitude
+    plt.contourf(X, Y, velocity_mag, levels=50, alpha=0.8, cmap="viridis")
+    plt.colorbar(label='Velocity Magnitude')
+    
+    # Velocity vectors
+    skip = 5
+    plt.quiver(X[::skip, ::skip], Y[::skip, ::skip], u[::skip, ::skip], v[::skip, ::skip],
+               color='white', scale=50, pivot='middle', alpha=0.8, label="Velocity Vectors")
+    
+    # Pressure vectors
+    plt.quiver(X[::skip, ::skip], Y[::skip, ::skip], dpdx[::skip, ::skip], dpdy[::skip, ::skip],
+               color='red', scale=100, pivot='middle', alpha=0.8, label="Pressure Vectors")
 
-plt.legend()
-plt.savefig(os.path.join(save_dir, 'velocity_field_final.png'))  # Save final plot
-plt.show()
+    plt.xlabel('X')
+    plt.ylabel('Y')
+    plt.title(f'Velocity and Pressure Vectors {"at time step {}".format(n) if n else ""}')
+    
+    # Draw obstacle
+    plt.plot(*obstacle_coords, 'k-', linewidth=2, label="Obstacle")
+    plt.legend(loc='upper right')
+    
+    if save_path:
+        plt.savefig(save_path)
+        plt.close()
+    else:
+        plt.show()
+
+
+def update_particle_positions(particle_positions, u, v, dt):
+    """Update particle positions based on velocity field."""
+    x, y = particle_positions[:, 0], particle_positions[:, 1]
+    x_idx = np.clip((x / dx).astype(int), 0, u.shape[1] - 1)
+    y_idx = np.clip((y / dy).astype(int), 0, u.shape[0] - 1)
+    
+    # Get velocity at particle positions
+    u_particles = u[y_idx, x_idx]
+    v_particles = v[y_idx, x_idx]
+    
+    # Update positions
+    x_new = x + u_particles * dt
+    y_new = y + v_particles * dt
+    
+    # Reflect particles that hit the boundaries
+    x_new = np.clip(x_new, 0, Lx)
+    y_new = np.clip(y_new, 0, Ly)
+    return np.vstack([x_new, y_new]).T
+
+
+def plot_particles(X, Y, u, v, particle_positions, obstacle_coords, n=None, save_path=None):
+    """Plot particles over the velocity field."""
+    plt.figure(figsize=(11, 7))
+    velocity_mag = np.sqrt(u**2 + v**2)
+    
+    # Contour plot for velocity magnitude
+    plt.contourf(X, Y, velocity_mag, levels=50, alpha=0.5, cmap="viridis")
+    plt.colorbar(label='Velocity Magnitude')
+    
+    # Plot particles
+    plt.scatter(particle_positions[:, 0], particle_positions[:, 1], c='red', s=10, label='Particles')
+
+    # Velocity vectors for reference
+    skip = 5
+    plt.quiver(X[::skip, ::skip], Y[::skip, ::skip], u[::skip, ::skip], v[::skip, ::skip],
+               color='white', scale=50, pivot='middle', alpha=0.6, label="Velocity Vectors")
+    
+    plt.xlabel('X')
+    plt.ylabel('Y')
+    plt.title(f'Particles in Flow Field {"at time step {}".format(n) if n else ""}')
+    
+    # Draw obstacle
+    plt.plot(*obstacle_coords, 'k-', linewidth=2, label="Obstacle")
+    plt.legend(loc='upper right')
+    
+    if save_path:
+        plt.savefig(save_path)
+        plt.close()
+    else:
+        plt.show()
+
+
+# Define obstacle coordinates for plotting
+obstacle_coords = ([obstacle_x, obstacle_x + obstacle_width, obstacle_x + obstacle_width, obstacle_x, obstacle_x],
+                   [obstacle_y, obstacle_y, obstacle_y + obstacle_height, obstacle_y + obstacle_height, obstacle_y])
+
+# Generate initial particle positions (e.g., grid of particles)
+particle_positions = np.random.rand(100, 2) * [Lx, Ly]  # 100 particles randomly placed
+
+# Example usage
+plot_velocity_pressure_vectors(X, Y, u, v, p, dx, dy, obstacle_coords, n=nt,
+                                save_path=os.path.join(save_dir, 'velocity_pressure_vectors.png'))
+
+# Update and plot particles
+for t in range(10):  # Example: update and plot for 10 steps
+    particle_positions = update_particle_positions(particle_positions, u, v, dt)
+    plot_particles(X, Y, u, v, particle_positions, obstacle_coords, n=t,
+                   save_path=os.path.join(save_dir, f'particles_step_{t}.png'))
